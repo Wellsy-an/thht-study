@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>THHT Study: Researcher Dashboard</title>
+<!--
+  THHT STUDY - RESEARCHER DASHBOARD (course prototype)
+  =====================================================================
+  Single-file dashboard for the Tangram Help/Hurt Task (THHT) study.
+  - Shows DEMO DATA ONLY: ~60 simulated participants generated with a
+    fixed-seed random number generator, in the same JSON schema as the
+    experiment's results object (see buildResults() in experiment.html).
+  - Researchers can import real session JSON files (exported from the
+    experiment's debrief page); charts and table update immediately.
+  - "Simulate live updates" adds a new demo participant every few
+    seconds to preview a real-time setup.
+  - No database yet. See the clearly marked DATABASE HOOK section in the
+    script for where a future backend (e.g. Supabase) plugs in.
+  Bilingual convention (same as the experiment): every English string is
+  followed by its Chinese translation as a separate, smaller, muted
+  element; languages are never mixed within one sentence.
+  Charts: Chart.js 4 from the jsDelivr CDN. If it cannot load (offline),
+  a notice is shown and the KPI cards and data table still work.
+-->
+<style>
+  /* ---------------------------------------------------------------
+     1. DESIGN TOKENS (identical to the experiment page)
+     --------------------------------------------------------------- */
+  :root {
+    --bg: #f4f5f7; --surface: #ffffff; --surface-alt: #f8f9fa;
+    --text: #1d2228; --text-muted: #59626d;
+    --border: #d7dbe0; --border-strong: #b5bcc5;
+    --accent: #2f4a68; --accent-soft: #e6ecf3;
+    --success: #2e6b47; --error: #a3312a;
+    --radius-panel: 6px; --radius-control: 4px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 15px; line-height: 1.5; }
+  :focus-visible { outline: 3px solid #7d9cc0; outline-offset: 2px; }
+  [hidden] { display: none !important; }
+  .zh { display: block; font-size: 0.86em; color: var(--text-muted); font-weight: 400; margin-top: 1px; }
+
+  /* 2. Header + demo banner */
+  .site-header { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .header-inner { max-width: 1240px; margin: 0 auto; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .site-title { font-size: 17px; font-weight: 650; margin: 0; }
+  .site-title .zh { font-size: 13px; font-weight: 500; }
+  .nav { display: flex; gap: 18px; font-size: 14px; }
+  .nav a { color: var(--accent); text-decoration: none; }
+  .nav a:hover { text-decoration: underline; }
+  .nav .zh { font-size: 12px; }
+  .demo-banner { background: #eceef1; border-top: 1px solid var(--border); text-align: center; font-size: 14px; padding: 7px 20px; font-weight: 600; }
+  .demo-banner .zh { font-size: 12.5px; font-weight: 500; }
+
+  /* 3. Layout */
+  main { max-width: 1240px; margin: 0 auto; padding: 24px 20px 64px; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-panel); padding: 18px 20px; }
+  h2.section { font-size: 18px; font-weight: 600; margin: 30px 0 12px; }
+  h2.section .zh { font-size: 14px; font-weight: 500; }
+  .muted { color: var(--text-muted); }
+  .small { font-size: 13.5px; }
+
+  /* 4. Toolbar */
+  .toolbar { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; }
+  .field > label, .field > .label { font-weight: 600; }
+  select, input[type="search"] { font: inherit; font-size: 14px; padding: 7px 9px; border: 1px solid var(--border-strong); border-radius: var(--radius-control); background: #fff; color: var(--text); min-width: 180px; }
+  .btn { font: inherit; font-size: 14px; font-weight: 600; padding: 8px 14px; border-radius: var(--radius-control); border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; text-align: center; line-height: 1.3; }
+  .btn:hover { background: #233a53; }
+  .btn-secondary { background: var(--surface); color: var(--accent); border-color: var(--border-strong); }
+  .btn-secondary:hover { background: var(--surface-alt); border-color: var(--accent); }
+  .btn .zh { color: inherit; opacity: .85; font-size: 12px; font-weight: 500; }
+  .switch { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; font-weight: 600; }
+  .switch input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .live-status { font-size: 13px; color: var(--text-muted); min-height: 1.2em; }
+  .live-status.on { color: var(--success); }
+  .live-status .zh { color: inherit; }
+  .import-zone { border: 1px dashed var(--border-strong); border-radius: var(--radius-control); padding: 8px 12px; font-size: 13px; color: var(--text-muted); }
+  .import-zone.drag { border-color: var(--accent); background: var(--accent-soft); }
+  .msg { margin-top: 12px; font-size: 13.5px; padding: 8px 12px; border-radius: var(--radius-control); border: 1px solid var(--border); background: var(--surface-alt); }
+  .msg.ok { border-color: var(--success); color: var(--success); background: #eef5f0; }
+  .msg.err { border-color: var(--error); color: var(--error); background: #fbefee; }
+  .msg .zh { color: inherit; }
+
+  /* 5. KPI cards */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-panel); padding: 14px 16px; }
+  .kpi .k-label { font-size: 13.5px; font-weight: 600; color: var(--text-muted); }
+  .kpi .k-label .zh { font-size: 12px; }
+  .kpi .k-value { font-size: 28px; font-weight: 650; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .kpi .k-sub { font-size: 12.5px; color: var(--text-muted); }
+
+  /* 6. Charts */
+  .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-panel); padding: 14px 16px 12px; min-width: 0; }
+  .chart-card h3 { font-size: 15px; font-weight: 600; margin: 0 0 2px; }
+  .chart-card h3 .zh { font-size: 12.5px; font-weight: 500; }
+  .chart-card .note { font-size: 12.5px; color: var(--text-muted); margin: 4px 0 8px; }
+  .chart-box { position: relative; height: 260px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 8px; font-size: 13px; }
+  .legend .item { display: flex; align-items: flex-start; gap: 7px; }
+  .legend .sw { width: 12px; height: 12px; border-radius: 2px; margin-top: 3px; flex: none; }
+  .legend .zh { font-size: 11.5px; }
+  .chart-fallback { margin-top: 10px; }
+
+  /* 7. Table */
+  .table-tools { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: flex-end; margin-bottom: 12px; }
+  .table-wrap { overflow: auto; max-height: 520px; border: 1px solid var(--border); border-radius: var(--radius-control); }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+  th, td { padding: 7px 10px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+  th { position: sticky; top: 0; background: var(--surface-alt); z-index: 1; vertical-align: bottom; }
+  th button { all: unset; cursor: pointer; font-weight: 600; display: block; }
+  th button:focus-visible { outline: 3px solid #7d9cc0; }
+  th .zh { font-size: 11.5px; }
+  th .arrow { font-size: 11px; color: var(--text-muted); margin-left: 4px; }
+  td.num, th.num { text-align: right; }
+  tr.is-new td { background: var(--accent-soft); transition: background 2s ease; }
+  .tag { display: inline-block; font-size: 11.5px; padding: 1px 6px; border: 1px solid var(--border-strong); border-radius: 3px; color: var(--text-muted); }
+  footer { max-width: 1240px; margin: 0 auto; padding: 0 20px 40px; font-size: 13px; color: var(--text-muted); }
+  @media (max-width: 560px) { .charts { grid-template-columns: 1fr; } .chart-box { height: 230px; } }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="header-inner">
+    <p class="site-title">THHT Study: Researcher Dashboard<span class="zh" lang="zh-Hans">THHT研究：研究者统计面板</span></p>
+    <nav class="nav" aria-label="Site">
+      <a href="index.html">Home<span class="zh" lang="zh-Hans">首页</span></a>
+      <a href="experiment.html">Experiment<span class="zh" lang="zh-Hans">实验</span></a>
+    </nav>
+  </div>
+  <div class="demo-banner" role="note" id="demoBanner">Demo data: these are simulated participants, not real responses.<span class="zh" lang="zh-Hans">演示数据：以下为模拟参与者，并非真实作答。</span></div>
+</header>
+
+<main id="main">
+  <!-- Controls -->
+  <section class="panel" aria-labelledby="h-controls">
+    <h2 class="section" id="h-controls" style="margin-top:0">Data controls<span class="zh" lang="zh-Hans">数据控制</span></h2>
+    <div class="toolbar">
+      <div class="field">
+        <label for="conditionFilter">Video condition<span class="zh" lang="zh-Hans">视频条件</span></label>
+        <select id="conditionFilter">
+          <option value="all">All conditions（全部条件）</option>
+          <option value="ai_violent">AI violent（AI暴力）</option>
+          <option value="ai_neutral">AI neutral（AI中性）</option>
+        </select>
+      </div>
+      <div class="field">
+        <span class="label">Real-time preview<span class="zh" lang="zh-Hans">实时预览</span></span>
+        <label class="switch"><input type="checkbox" id="liveToggle"> <span>Simulate live updates<span class="zh" lang="zh-Hans">模拟实时更新</span></span></label>
+        <span class="live-status" id="liveStatus" aria-live="polite"></span>
+      </div>
+      <div class="field">
+        <span class="label">Import real sessions<span class="zh" lang="zh-Hans">导入真实数据</span></span>
+        <div class="import-zone" id="importZone">
+          <button type="button" class="btn btn-secondary" id="btnImport">Import JSON<span class="zh" lang="zh-Hans">导入 JSON</span></button>
+          <input type="file" id="fileInput" accept=".json,application/json" multiple hidden>
+          <span style="display:inline-block;vertical-align:middle;margin-left:8px">or drop files here<span class="zh" lang="zh-Hans">或将文件拖放到此处</span></span>
+        </div>
+      </div>
+      <div class="field">
+        <span class="label">Reset<span class="zh" lang="zh-Hans">重置</span></span>
+        <button type="button" class="btn btn-secondary" id="btnReset">Restore demo data<span class="zh" lang="zh-Hans">恢复演示数据</span></button>
+      </div>
+    </div>
+    <div class="msg" id="importMsg" role="status" hidden></div>
+    <p class="muted small" style="margin:12px 0 0">Charts include completed sessions whose participants chose to keep their data. Withdrawn sessions are counted in the cards only.<span class="zh" lang="zh-Hans">图表仅包含已完成且参与者选择保留数据的会话。撤回数据的会话仅计入上方统计卡片。</span></p>
+  </section>
+
+  <!-- KPI cards -->
+  <h2 class="section">Overview<span class="zh" lang="zh-Hans">概览</span></h2>
+  <div class="kpis">
+    <div class="kpi"><div class="k-label">Participants<span class="zh" lang="zh-Hans">参与者人数</span></div><div class="k-value" id="kpiN">-</div><div class="k-sub" id="kpiNSub"></div></div>
+    <div class="kpi"><div class="k-label">Completion rate<span class="zh" lang="zh-Hans">完成率</span></div><div class="k-value" id="kpiCompletion">-</div><div class="k-sub" id="kpiCompletionSub"></div></div>
+    <div class="kpi"><div class="k-label">Kept data<span class="zh" lang="zh-Hans">保留数据比例</span></div><div class="k-value" id="kpiKept">-</div><div class="k-sub" id="kpiKeptSub"></div></div>
+    <div class="kpi"><div class="k-label">Mean task time<span class="zh" lang="zh-Hans">平均任务用时</span></div><div class="k-value" id="kpiTime">-</div><div class="k-sub" id="kpiTimeSub"></div></div>
+  </div>
+
+  <!-- Charts -->
+  <h2 class="section">Charts<span class="zh" lang="zh-Hans">图表</span></h2>
+  <div class="msg err chart-fallback" id="chartFallback" role="alert" hidden>Charts could not be loaded (Chart.js is unavailable, e.g. offline). The summary cards and the data table still work.<span class="zh" lang="zh-Hans">图表无法加载（Chart.js 不可用，例如处于离线状态）。统计卡片和数据表仍可正常使用。</span></div>
+  <div class="charts" id="chartsGrid">
+    <div class="chart-card"><h3>Share of selections by difficulty<span class="zh" lang="zh-Hans">各难度题目在全部选择中的占比</span></h3><p class="note" id="noteDifficulty"></p><div class="chart-box"><canvas id="chDifficulty" aria-label="Donut chart: share of easy, medium and hard puzzles among all selections" role="img"></canvas></div><div class="legend" id="lgDifficulty"></div></div>
+    <div class="chart-card"><h3>Participants per day<span class="zh" lang="zh-Hans">每日参与人数</span></h3><p class="note">Last 14 days, by completion date.<span class="zh" lang="zh-Hans">最近14天，按完成日期统计。</span></p><div class="chart-box"><canvas id="chPerDay" aria-label="Line chart: participants per day" role="img"></canvas></div></div>
+    <div class="chart-card"><h3>Distribution of the Difference score<span class="zh" lang="zh-Hans">差异分数分布</span></h3><p class="note">Difference = hard selected minus easy selected (-10 to +10).<span class="zh" lang="zh-Hans">差异分数 = 所选困难题数减去所选简单题数（-10至+10）。</span></p><div class="chart-box"><canvas id="chDiff" aria-label="Histogram of the Difference score" role="img"></canvas></div></div>
+    <div class="chart-card"><h3>Helping and Hurting scores by condition<span class="zh" lang="zh-Hans">各条件下的帮助分数与伤害分数</span></h3><p class="note">Bars show means (0 to 10).<span class="zh" lang="zh-Hans">柱形表示平均值（0至10）。</span></p><div class="chart-box"><canvas id="chCond" aria-label="Grouped bar chart: mean helping and hurting scores by condition" role="img"></canvas></div><div class="legend" id="lgCond"></div></div>
+    <div class="chart-card"><h3>Manipulation check: mean ratings<span class="zh" lang="zh-Hans">操纵检验：平均评分</span></h3><p class="note">1 = Not at all, 7 = Extremely.<span class="zh" lang="zh-Hans">1 = 完全没有，7 = 极其。</span></p><div class="chart-box"><canvas id="chManip" aria-label="Bar chart: mean manipulation-check ratings by condition" role="img"></canvas></div><div class="legend" id="lgManip"></div></div>
+    <div class="chart-card"><h3>Gender<span class="zh" lang="zh-Hans">性别</span></h3><p class="note">&nbsp;</p><div class="chart-box"><canvas id="chGender" aria-label="Pie chart: gender" role="img"></canvas></div><div class="legend" id="lgGender"></div></div>
+    <div class="chart-card"><h3>Daily short-video time<span class="zh" lang="zh-Hans">每日短视频观看时长</span></h3><p class="note">Number of participants.<span class="zh" lang="zh-Hans">参与者人数。</span></p><div class="chart-box"><canvas id="chDaily" aria-label="Bar chart: daily short-video time" role="img"></canvas></div></div>
+  </div>
+
+  <!-- Table -->
+  <h2 class="section">Participant data<span class="zh" lang="zh-Hans">参与者数据</span></h2>
+  <section class="panel" aria-label="Participant data table">
+    <div class="table-tools">
+      <div class="field">
+        <label for="tableSearch">Filter rows<span class="zh" lang="zh-Hans">筛选行</span></label>
+        <input type="search" id="tableSearch" placeholder="ID, gender, decision ...">
+      </div>
+      <button type="button" class="btn" id="btnCsv">Export CSV<span class="zh" lang="zh-Hans">导出 CSV</span></button>
+      <span class="muted small" id="rowCount" aria-live="polite"></span>
+    </div>
+    <div class="table-wrap"><table id="dataTable"><thead><tr id="tableHead"></tr></thead><tbody id="tableBody"></tbody></table></div>
+    <p class="muted small" style="margin:10px 0 0">Click a column heading to sort. The CSV contains the visible (filtered) rows with all recorded fields.<span class="zh" lang="zh-Hans">点击列标题可排序。CSV 包含当前显示（筛选后）的行及全部记录字段。</span></p>
+  </section>
+</main>
+<footer>Course prototype. Demo data only; no database is connected.<span class="zh" lang="zh-Hans">课程原型。仅含演示数据，未连接数据库。</span></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+'use strict';
+/* =====================================================================
+   1. HELPERS AND STUDY CONSTANTS (copied from the experiment)
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+const bi = (en, zh) => en + '<span class="zh" lang="zh-Hans">' + zh + '</span>';
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* Same fixed puzzle-difficulty mapping as experiment.html (P01..P30). */
+const DIFFICULTY_SEQUENCE = [
+  'medium','easy','hard','easy','hard','medium','hard','easy','medium','medium',
+  'easy','hard','medium','hard','easy','easy','medium','hard','hard','medium',
+  'easy','medium','hard','easy','hard','medium','easy','hard','medium','easy'
+];
+const PUZZLE_IDS = DIFFICULTY_SEQUENCE.map((d, i) => 'P' + String(i + 1).padStart(2, '0'));
+const DIFF_OF = Object.fromEntries(PUZZLE_IDS.map((id, i) => [id, DIFFICULTY_SEQUENCE[i]]));
+
+const CONDITIONS = {
+  ai_violent: ['AI violent', 'AI暴力'],
+  ai_neutral: ['AI neutral', 'AI中性']
+};
+const MANIP_ITEMS = [
+  ['man_violent', 'Violent', '暴力'], ['man_arousing', 'Arousing', '情绪唤起'], ['man_disgusting', 'Disgusting', '恶心'],
+  ['man_funny', 'Funny', '有趣'], ['man_realistic', 'Realistic', '真实'], ['man_frightening', 'Frightening', '恐惧'],
+  ['man_engaging', 'Engaging', '吸引力']
+];
+const GENDERS = {
+  woman: ['Woman', '女性'], man: ['Man', '男性'], non_binary: ['Non-binary', '非二元性别'],
+  self_describe: ['Self-described', '自行描述'], prefer_not: ['Prefer not to say', '不愿透露']
+};
+const DAILY_TIME = {
+  lt30: ['< 30 min', '少于30分钟'], '30_60': ['30-60 min', '30分钟至1小时'], '1_2h': ['1-2 h', '1至2小时'],
+  '2_3h': ['2-3 h', '2至3小时'], gt3h: ['> 3 h', '超过3小时']
+};
+const EDUCATION = ['secondary_or_below', 'vocational', 'bachelor', 'master', 'doctorate', 'other', 'prefer_not'];
+
+/* Neutral chart palette (slate accent + greys, no bright colours). */
+const PALETTE = ['#2f4a68', '#7d9cc0', '#b5bcc5', '#59626d', '#d7dbe0', '#1d2228', '#9aa3ad'];
+const DIFF_COLORS = { easy: '#b5bcc5', medium: '#7d9cc0', hard: '#2f4a68' };
+const COND_COLORS = { ai_violent: '#2f4a68', ai_neutral: '#b5bcc5' };
+
+/* =====================================================================
+   2. DEMO DATA GENERATOR (fixed seed -> identical demo set on each load)
+   Records follow the experiment's results schema (buildResults()).
+   NOTE: "video.condition" already exists in the experiment schema (it is
+   'placeholder' there until real stimuli are configured). The demo data
+   fills it with two conditions: 'ai_violent' and 'ai_neutral'.
+   ===================================================================== */
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const DEMO_SEED = 20261009;
+let rng = mulberry32(DEMO_SEED);
+const rand = (a, b) => a + (b - a) * rng();
+const randInt = (a, b) => Math.floor(rand(a, b + 1));
+const pick = arr => arr[Math.floor(rng() * arr.length)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const gauss = () => { let u = 0, v = 0; while (!u) u = rng(); while (!v) v = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+function weighted(options) {              // options: [[value, weight], ...]
+  const total = options.reduce((s, o) => s + o[1], 0);
+  let r = rng() * total;
+  for (const [v, w] of options) { if ((r -= w) <= 0) return v; }
+  return options[options.length - 1][0];
+}
+let demoCounter = 0;
+
+/* Creates one simulated participant. `when` = completion time (Date). */
+function makeDemoParticipant(when) {
+  demoCounter++;
+  const condition = rng() < 0.5 ? 'ai_violent' : 'ai_neutral';
+  const violent = condition === 'ai_violent';
+  // Individual tendency: >0 leans to hurting (hard puzzles), <0 to helping.
+  const tendency = (violent ? 0.35 : -0.25) + gauss() * 0.55;
+  const w = { easy: Math.exp(-tendency), medium: 1, hard: Math.exp(tendency) };
+  const pool = PUZZLE_IDS.slice(), selected = [];
+  while (selected.length < 11) {          // weighted draw without replacement
+    const id = weighted(pool.map(p => [p, w[DIFF_OF[p]]]));
+    selected.push(id); pool.splice(pool.indexOf(id), 1);
+  }
+  selected.sort();
+  const counts = { easy: 0, medium: 0, hard: 0 };
+  selected.forEach(id => counts[DIFF_OF[id]]++);
+  const durationMs = Math.round(clamp(Math.exp(4.8 + gauss() * 0.45), 35, 600) * 1000);
+  const completed = rng() > 0.07;          // ~7% abandon before the end
+  const end = new Date(when.getTime());
+  const start = new Date(end.getTime() - durationMs - randInt(240, 600) * 1000);
+  const likert5 = base => clamp(Math.round(base + gauss() * 0.8), 1, 5);
+  const r7 = base => clamp(Math.round(base + gauss() * 1.1), 1, 7);
+  const keep = rng() > 0.1;
+  const id = 'demo-' + String(demoCounter).padStart(3, '0');
+  const rec = {
+    participantId: id,
+    startedAt: start.toISOString(),
+    completedAt: completed ? end.toISOString() : null,
+    stepTimestamps: {},
+    consent: { age18: true, consent: true, timestamp: start.toISOString() },
+    video: { condition: condition, mode: 'simulated', started: true, watched: true, watchedAt: start.toISOString() },
+    attentionCheck: { objectAnswer: rng() < 0.9 ? 'clock' : pick(['umbrella', 'bicycle', 'teapot']), objectCorrect: null,
+                      instructedAnswer: rng() < 0.92 ? 4 : randInt(1, 5), instructedPassed: null },
+    thht: completed ? {
+      selectedIds: selected, nSelected: 11,
+      easyCount: counts.easy, mediumCount: counts.medium, hardCount: counts.hard,
+      durationMs: durationMs, durationSec: Math.round(durationMs / 100) / 10,
+      helpingScore: counts.easy, hurtingScore: counts.hard, differenceScore: counts.hard - counts.easy
+    } : { selectedIds: [], nSelected: 0, easyCount: 0, mediumCount: 0, hardCount: 0, durationMs: null, durationSec: null,
+          helpingScore: null, hurtingScore: null, differenceScore: null },
+    motivationCheck: completed ? {
+      mot_easier: likert5(1.5 + counts.easy * 0.45), mot_harder: likert5(1 + counts.hard * 0.45), mot_careful: likert5(3.8)
+    } : {},
+    manipulationCheck: completed ? {
+      man_violent: r7(violent ? 5.6 : 1.9), man_arousing: r7(violent ? 5.0 : 3.2), man_disgusting: r7(violent ? 4.3 : 1.8),
+      man_funny: r7(violent ? 2.0 : 4.4), man_realistic: r7(4.2), man_frightening: r7(violent ? 4.6 : 1.7),
+      man_engaging: r7(violent ? 5.0 : 4.4), seenBefore: weighted([['no', 7], ['yes', 1], ['not_sure', 2]])
+    } : {},
+    suspicionCheck: completed ? {
+      beliefOtherParticipant: r7(4.6),
+      perceivedStudyPurpose: pick(['How videos affect mood.', 'Decision making after watching videos.', 'Puzzle difficulty preferences.',
+                                   'Not sure.', 'Whether short videos change how we treat others.', 'Attention and memory for videos.'])
+    } : {},
+    demographics: completed ? {
+      age: clamp(Math.round(22 + Math.abs(gauss()) * 4.5), 18, 45),
+      gender: weighted([['woman', 48], ['man', 44], ['non_binary', 3], ['self_describe', 1], ['prefer_not', 4]]),
+      education: weighted(EDUCATION.map((e, i) => [e, [8, 6, 46, 26, 6, 4, 4][i]])),
+      dailyShortVideoTime: weighted([['lt30', 12], ['30_60', 26], ['1_2h', 32], ['2_3h', 18], ['gt3h', 12]]),
+      aiVideoFrequency: randInt(1, 5), violentVideoFrequency: weighted([[1, 25], [2, 35], [3, 25], [4, 10], [5, 5]]),
+      seenFruitQueenType: weighted([['no', 6], ['yes', 3], ['unsure', 2]])
+    } : {},
+    debrief: completed ? { dataDecision: keep ? 'keep' : 'withdraw', decidedAt: end.toISOString(), retainData: keep }
+                       : { dataDecision: null, decidedAt: null, retainData: false },
+    _source: 'demo'                                  // dashboard-only field (not in the experiment schema)
+  };
+  rec.attentionCheck.objectCorrect = rec.attentionCheck.objectAnswer === 'clock';
+  rec.attentionCheck.instructedPassed = rec.attentionCheck.instructedAnswer === 4;
+  return rec;
+}
+
+/* ~60 participants spread over the last 14 days (more on later days). */
+function generateDemoData(n) {
+  rng = mulberry32(DEMO_SEED); demoCounter = 0;
+  const now = Date.now(), out = [];
+  for (let i = 0; i < n; i++) {
+    const daysAgo = Math.floor(Math.pow(rng(), 1.3) * 14);
+    const t = new Date(now - daysAgo * 86400000);
+    t.setHours(randInt(9, 22), randInt(0, 59), randInt(0, 59), 0);
+    if (t.getTime() > now) t.setTime(now - randInt(5, 120) * 60000);
+    out.push(makeDemoParticipant(t));
+  }
+  return out.sort((a, b) => (a.startedAt < b.startedAt ? -1 : 1));
+}
+
+/* =====================================================================
+   3. DATABASE HOOK  >>> PLUG A REAL BACKEND IN HERE <<<
+   Currently DATA_SOURCE = 'demo': records come from generateDemoData()
+   and from JSON files imported by the researcher.
+   To connect a database later (e.g. Supabase), implement the two
+   functions below and set DATA_SOURCE = 'database'. Example:
+     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+     async function loadFromDatabase() {
+       const { data, error } = await supabase.from('thht_sessions').select('payload');
+       if (error) throw error;
+       return data.map(row => row.payload);            // payload = results JSON
+     }
+     function subscribeToDatabase(onInsert) {
+       return supabase.channel('thht').on('postgres_changes',
+         { event: 'INSERT', schema: 'public', table: 'thht_sessions' },
+         msg => onInsert(msg.new.payload)).subscribe();
+     }
+   Use row-level security so only researchers can read; never store
+   sessions whose debrief.dataDecision is 'withdraw'.
+   ===================================================================== */
+const DATA_SOURCE = 'demo';
+async function loadFromDatabase() { return null; }          // TODO: return an array of results objects
+function subscribeToDatabase(onInsert) { return null; }     // TODO: call onInsert(record) for each new session
+
+/* =====================================================================
+   4. STATE
+   ===================================================================== */
+let records = [];                       // all sessions (demo + imported + live)
+const view = { condition: 'all', search: '', sortKey: 'date', sortDir: -1 };
+const charts = {};
+let liveTimer = null, liveAdded = 0;
+const newIds = new Set();               // rows to highlight briefly
+
+const isCompleted = r => !!r.completedAt && r.thht && r.thht.nSelected === 11;
+const isAnalysable = r => isCompleted(r) && r.debrief && r.debrief.retainData === true;
+const condOf = r => (r.video && r.video.condition) || 'unknown';
+const mean = a => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
+const median = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const fmt1 = v => v == null ? '-' : (Math.round(v * 10) / 10).toFixed(1);
+const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '-';
+const localDay = iso => { const d = new Date(iso); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+const localTime = iso => { if (!iso) return '-'; const d = new Date(iso); return localDay(iso) + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+
+function filtered() { return view.condition === 'all' ? records : records.filter(r => condOf(r) === view.condition); }
+
+/* =====================================================================
+   5. KPI CARDS
+   ===================================================================== */
+function renderKpis(rows) {
+  const done = rows.filter(isCompleted);
+  const decided = done.filter(r => r.debrief && r.debrief.dataDecision);
+  const kept = decided.filter(r => r.debrief.retainData === true);
+  const times = done.map(r => r.thht.durationSec).filter(v => typeof v === 'number');
+  const imported = rows.filter(r => r._source === 'imported').length;
+  $('kpiN').textContent = rows.length;
+  $('kpiNSub').innerHTML = bi(done.length + ' completed, ' + imported + ' imported', '已完成 ' + done.length + ' 人，导入 ' + imported + ' 人');
+  $('kpiCompletion').textContent = pct(done.length, rows.length);
+  $('kpiCompletionSub').innerHTML = bi(done.length + ' of ' + rows.length + ' sessions', '共 ' + rows.length + ' 个会话中完成 ' + done.length + ' 个');
+  $('kpiKept').textContent = pct(kept.length, decided.length);
+  $('kpiKeptSub').innerHTML = bi((decided.length - kept.length) + ' withdrew their data', (decided.length - kept.length) + ' 人撤回了数据');
+  $('kpiTime').textContent = times.length ? fmt1(mean(times)) + ' s' : '-';
+  $('kpiTimeSub').innerHTML = bi('Median ' + fmt1(median(times)) + ' s (THHT selection)', '中位数 ' + fmt1(median(times)) + ' 秒（选题任务）');
+}
+
+/* =====================================================================
+   6. CHARTS (Chart.js). Labels are [English, Chinese] arrays, which
+   Chart.js draws on two lines; legends are bilingual HTML lists.
+   ===================================================================== */
+function legendHTML(items) {
+  return items.map(([color, en, zh]) => '<span class="item"><span class="sw" style="background:' + color + '"></span><span>' + bi(esc(en), esc(zh)) + '</span></span>').join('');
+}
+function baseOptions(extra) {
+  return Object.assign({
+    responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1d2228' } }
+  }, extra || {});
+}
+const axes = (yTitle, extraY) => ({
+  x: { grid: { display: false }, ticks: { color: '#59626d' } },
+  y: Object.assign({ beginAtZero: true, grid: { color: '#e6e9ed' }, ticks: { color: '#59626d', precision: 0 },
+       title: yTitle ? { display: true, text: yTitle, color: '#59626d' } : undefined }, extraY || {})
+});
+
+function createCharts() {
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  Chart.defaults.font.size = 12;
+  Chart.defaults.color = '#59626d';
+  charts.difficulty = new Chart($('chDifficulty'), { type: 'doughnut',
+    data: { labels: [['Easy', '简单'], ['Medium', '中等'], ['Hard', '困难']], datasets: [{ data: [0, 0, 0], backgroundColor: [DIFF_COLORS.easy, DIFF_COLORS.medium, DIFF_COLORS.hard], borderColor: '#fff', borderWidth: 2 }] },
+    options: baseOptions({ cutout: '58%' }) });
+  charts.perDay = new Chart($('chPerDay'), { type: 'line',
+    data: { labels: [], datasets: [{ data: [], borderColor: '#2f4a68', backgroundColor: '#2f4a68', pointRadius: 3, tension: 0.2, fill: false }] },
+    options: baseOptions({ scales: axes() }) });
+  charts.diff = new Chart($('chDiff'), { type: 'bar',
+    data: { labels: Array.from({ length: 21 }, (_, i) => String(i - 10)), datasets: [{ data: [], backgroundColor: '#7d9cc0', barPercentage: 1, categoryPercentage: 0.95 }] },
+    options: baseOptions({ scales: axes() }) });
+  charts.cond = new Chart($('chCond'), { type: 'bar',
+    data: { labels: Object.values(CONDITIONS), datasets: [
+      { label: 'Helping score', data: [], backgroundColor: '#b5bcc5' },
+      { label: 'Hurting score', data: [], backgroundColor: '#2f4a68' }] },
+    options: baseOptions({ scales: axes(null, { max: 10 }) }) });
+  charts.manip = new Chart($('chManip'), { type: 'bar',
+    data: { labels: MANIP_ITEMS.map(m => [m[1], m[2]]), datasets: Object.keys(CONDITIONS).map(c => ({ label: CONDITIONS[c][0], data: [], backgroundColor: COND_COLORS[c] })) },
+    options: baseOptions({ scales: axes(null, { min: 1, max: 7, beginAtZero: false }) }) });
+  charts.gender = new Chart($('chGender'), { type: 'pie',
+    data: { labels: Object.values(GENDERS), datasets: [{ data: [], backgroundColor: PALETTE.slice(0, 5), borderColor: '#fff', borderWidth: 2 }] },
+    options: baseOptions() });
+  charts.daily = new Chart($('chDaily'), { type: 'bar',
+    data: { labels: Object.values(DAILY_TIME), datasets: [{ data: [], backgroundColor: '#59626d' }] },
+    options: baseOptions({ scales: axes() }) });
+  $('lgDifficulty').innerHTML = legendHTML([[DIFF_COLORS.easy, 'Easy', '简单'], [DIFF_COLORS.medium, 'Medium', '中等'], [DIFF_COLORS.hard, 'Hard', '困难']]);
+  $('lgCond').innerHTML = legendHTML([['#b5bcc5', 'Helping score (easy selected)', '帮助分数（所选简单题数）'], ['#2f4a68', 'Hurting score (hard selected)', '伤害分数（所选困难题数）']]);
+  $('lgManip').innerHTML = legendHTML(Object.keys(CONDITIONS).map(c => [COND_COLORS[c], CONDITIONS[c][0], CONDITIONS[c][1]]));
+  $('lgGender').innerHTML = legendHTML(Object.keys(GENDERS).map((g, i) => [PALETTE[i], GENDERS[g][0], GENDERS[g][1]]));
+}
+
+function updateCharts(rows) {
+  if (!window.Chart || !charts.difficulty) return;
+  const a = rows.filter(isAnalysable);
+  // Difficulty share of all selections
+  const tot = { easy: 0, medium: 0, hard: 0 };
+  a.forEach(r => { tot.easy += r.thht.easyCount; tot.medium += r.thht.mediumCount; tot.hard += r.thht.hardCount; });
+  charts.difficulty.data.datasets[0].data = [tot.easy, tot.medium, tot.hard];
+  const all = tot.easy + tot.medium + tot.hard;
+  $('noteDifficulty').innerHTML = bi(all + ' selections from ' + a.length + ' sessions: easy ' + pct(tot.easy, all) + ', medium ' + pct(tot.medium, all) + ', hard ' + pct(tot.hard, all) + '.',
+                                     a.length + ' 个会话共 ' + all + ' 次选择：简单 ' + pct(tot.easy, all) + '，中等 ' + pct(tot.medium, all) + '，困难 ' + pct(tot.hard, all) + '。');
+  // Participants per day, last 14 days
+  const days = [], counts = {};
+  for (let i = 13; i >= 0; i--) { const d = localDay(new Date(Date.now() - i * 86400000).toISOString()); days.push(d); counts[d] = 0; }
+  a.forEach(r => { const d = localDay(r.completedAt); if (d in counts) counts[d]++; });
+  charts.perDay.data.labels = days.map(d => d.slice(5));
+  charts.perDay.data.datasets[0].data = days.map(d => counts[d]);
+  // Difference score histogram
+  const hist = Array(21).fill(0);
+  a.forEach(r => { const v = r.thht.differenceScore; if (v >= -10 && v <= 10) hist[v + 10]++; });
+  charts.diff.data.datasets[0].data = hist;
+  // Helping vs hurting means by condition
+  const byCond = c => a.filter(r => condOf(r) === c);
+  const keys = Object.keys(CONDITIONS);
+  charts.cond.data.datasets[0].data = keys.map(c => mean(byCond(c).map(r => r.thht.helpingScore)));
+  charts.cond.data.datasets[1].data = keys.map(c => mean(byCond(c).map(r => r.thht.hurtingScore)));
+  // Manipulation check means by condition
+  charts.manip.data.datasets.forEach((ds, k) => {
+    ds.data = MANIP_ITEMS.map(m => mean(byCond(keys[k]).map(r => r.manipulationCheck[m[0]]).filter(v => typeof v === 'number')));
+  });
+  // Demographics
+  charts.gender.data.datasets[0].data = Object.keys(GENDERS).map(g => a.filter(r => r.demographics.gender === g).length);
+  charts.daily.data.datasets[0].data = Object.keys(DAILY_TIME).map(t => a.filter(r => r.demographics.dailyShortVideoTime === t).length);
+  Object.values(charts).forEach(c => c.update());
+}
+
+/* =====================================================================
+   7. DATA TABLE (sortable, filterable)
+   ===================================================================== */
+const two = (pair) => pair ? bi(esc(pair[0]), esc(pair[1])) : '-';
+const COLUMNS = [
+  { key: 'id',    en: 'Participant', zh: '参与者', val: r => r.participantId, cell: r => esc(r.participantId) },
+  { key: 'date',  en: 'Completed', zh: '完成时间', val: r => r.completedAt || r.startedAt || '', cell: r => r.completedAt ? localTime(r.completedAt) : bi('Not completed', '未完成') },
+  { key: 'cond',  en: 'Condition', zh: '条件', val: r => condOf(r), cell: r => two(CONDITIONS[condOf(r)]) },
+  { key: 'easy',  en: 'Easy', zh: '简单', num: true, val: r => isCompleted(r) ? r.thht.easyCount : null },
+  { key: 'med',   en: 'Medium', zh: '中等', num: true, val: r => isCompleted(r) ? r.thht.mediumCount : null },
+  { key: 'hard',  en: 'Hard', zh: '困难', num: true, val: r => isCompleted(r) ? r.thht.hardCount : null },
+  { key: 'help',  en: 'Helping', zh: '帮助分数', num: true, val: r => r.thht ? r.thht.helpingScore : null },
+  { key: 'hurt',  en: 'Hurting', zh: '伤害分数', num: true, val: r => r.thht ? r.thht.hurtingScore : null },
+  { key: 'diff',  en: 'Difference', zh: '差异分数', num: true, val: r => r.thht ? r.thht.differenceScore : null },
+  { key: 'time',  en: 'Time (s)', zh: '用时（秒）', num: true, val: r => r.thht ? r.thht.durationSec : null },
+  { key: 'gender', en: 'Gender', zh: '性别', val: r => (r.demographics && r.demographics.gender) || '', cell: r => two(GENDERS[r.demographics && r.demographics.gender]) },
+  { key: 'age',   en: 'Age', zh: '年龄', num: true, val: r => r.demographics ? r.demographics.age : null },
+  { key: 'dec',   en: 'Data decision', zh: '数据决定', val: r => (r.debrief && r.debrief.dataDecision) || '',
+    cell: r => { const d = r.debrief && r.debrief.dataDecision; return d === 'keep' ? bi('Keep', '保留') : d === 'withdraw' ? bi('Withdraw', '撤回') : '-'; } },
+  { key: 'src',   en: 'Source', zh: '来源', val: r => r._source || '',
+    cell: r => '<span class="tag">' + (r._source === 'imported' ? bi('Imported', '导入') : r._source === 'demo-live' ? bi('Live demo', '实时演示') : bi('Demo', '演示')) + '</span>' }
+];
+function renderHead() {
+  $('tableHead').innerHTML = COLUMNS.map(c => {
+    const sorted = view.sortKey === c.key;
+    const aria = sorted ? (view.sortDir > 0 ? 'ascending' : 'descending') : 'none';
+    return '<th scope="col" class="' + (c.num ? 'num' : '') + '" aria-sort="' + aria + '"><button type="button" data-key="' + c.key + '">' +
+      esc(c.en) + '<span class="arrow" aria-hidden="true">' + (sorted ? (view.sortDir > 0 ? '▲' : '▼') : '') + '</span>' +
+      '<span class="zh" lang="zh-Hans">' + esc(c.zh) + '</span></button></th>';
+  }).join('');
+}
+function tableRows(rows) {
+  const q = view.search.trim().toLowerCase();
+  let out = rows;
+  if (q) out = out.filter(r => COLUMNS.some(c => { const v = c.val(r); return v != null && String(v).toLowerCase().includes(q); }) ||
+                               COLUMNS.some(c => c.cell && c.cell(r).toLowerCase().includes(q)));
+  const col = COLUMNS.find(c => c.key === view.sortKey);
+  return out.slice().sort((a, b) => {
+    const x = col.val(a), y = col.val(b);
+    if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
+    return (x < y ? -1 : x > y ? 1 : 0) * view.sortDir;
+  });
+}
+function renderTable(rows) {
+  const list = tableRows(rows);
+  $('tableBody').innerHTML = list.map(r => '<tr' + (newIds.has(r.participantId) ? ' class="is-new"' : '') + ' data-id="' + esc(r.participantId) + '">' +
+    COLUMNS.map(c => '<td class="' + (c.num ? 'num' : '') + '">' + (c.cell ? c.cell(r) : (c.val(r) == null ? '-' : esc(c.val(r)))) + '</td>').join('') + '</tr>').join('');
+  $('rowCount').innerHTML = bi(list.length + ' of ' + records.length + ' rows shown', '显示 ' + list.length + ' 行，共 ' + records.length + ' 行');
+}
+
+/* =====================================================================
+   8. RENDER CYCLE
+   ===================================================================== */
+function renderAll() {
+  const rows = filtered();
+  renderKpis(rows);
+  updateCharts(rows);
+  renderHead();
+  renderTable(rows);
+}
+
+/* =====================================================================
+   9. CSV EXPORT (all recorded fields of the visible rows; UTF-8 BOM so
+   spreadsheet programs read Chinese text correctly)
+   ===================================================================== */
+const CSV_FIELDS = [
+  ['participantId', r => r.participantId], ['source', r => r._source || ''], ['condition', r => condOf(r)],
+  ['startedAt', r => r.startedAt], ['completedAt', r => r.completedAt], ['completed', r => isCompleted(r)],
+  ['selectedIds', r => (r.thht && r.thht.selectedIds || []).join(' ')],
+  ['easyCount', r => r.thht && r.thht.easyCount], ['mediumCount', r => r.thht && r.thht.mediumCount], ['hardCount', r => r.thht && r.thht.hardCount],
+  ['helpingScore', r => r.thht && r.thht.helpingScore], ['hurtingScore', r => r.thht && r.thht.hurtingScore],
+  ['differenceScore', r => r.thht && r.thht.differenceScore], ['durationSec', r => r.thht && r.thht.durationSec],
+  ['mot_easier', r => r.motivationCheck && r.motivationCheck.mot_easier], ['mot_harder', r => r.motivationCheck && r.motivationCheck.mot_harder],
+  ['mot_careful', r => r.motivationCheck && r.motivationCheck.mot_careful]
+].concat(MANIP_ITEMS.map(m => [m[0], r => r.manipulationCheck && r.manipulationCheck[m[0]]])).concat([
+  ['seenBefore', r => r.manipulationCheck && r.manipulationCheck.seenBefore],
+  ['attentionObjectCorrect', r => r.attentionCheck && r.attentionCheck.objectCorrect],
+  ['attentionInstructedPassed', r => r.attentionCheck && r.attentionCheck.instructedPassed],
+  ['beliefOtherParticipant', r => r.suspicionCheck && r.suspicionCheck.beliefOtherParticipant],
+  ['perceivedStudyPurpose', r => r.suspicionCheck && r.suspicionCheck.perceivedStudyPurpose],
+  ['age', r => r.demographics && r.demographics.age], ['gender', r => r.demographics && r.demographics.gender],
+  ['education', r => r.demographics && r.demographics.education], ['dailyShortVideoTime', r => r.demographics && r.demographics.dailyShortVideoTime],
+  ['aiVideoFrequency', r => r.demographics && r.demographics.aiVideoFrequency], ['violentVideoFrequency', r => r.demographics && r.demographics.violentVideoFrequency],
+  ['seenFruitQueenType', r => r.demographics && r.demographics.seenFruitQueenType],
+  ['dataDecision', r => r.debrief && r.debrief.dataDecision], ['retainData', r => r.debrief && r.debrief.retainData]
+]);
+function toCsv(rows) {
+  const cell = v => { if (v == null) return ''; const s = String(v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  return '\ufeff' + [CSV_FIELDS.map(f => f[0]).join(',')].concat(rows.map(r => CSV_FIELDS.map(f => cell(f[1](r))).join(','))).join('\r\n');
+}
+function exportCsv() {
+  const csv = toCsv(tableRows(filtered()));
+  try {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = 'thht_sessions_' + localDay(new Date().toISOString()) + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  } catch (e) { showMsg('err', 'CSV export is not available in this browser context.', '当前浏览器环境无法导出 CSV。'); }
+  window.THHT_LAST_CSV = csv;               // handy for testing / copying from the console
+}
+
+/* =====================================================================
+   10. JSON IMPORT (results files saved from the experiment's debrief).
+   Accepts one results object, an array of them, or { results: [...] }.
+   Records whose participantId already exists are replaced.
+   ===================================================================== */
+function showMsg(kind, en, zh) { const m = $('importMsg'); m.className = 'msg ' + kind; m.innerHTML = bi(esc(en), esc(zh)); m.hidden = false; }
+function normaliseRecord(o) {
+  if (!o || typeof o !== 'object' || !o.participantId || !o.thht || !Array.isArray(o.thht.selectedIds)) return null;
+  const r = JSON.parse(JSON.stringify(o));
+  const c = { easy: 0, medium: 0, hard: 0 };
+  r.thht.selectedIds.forEach(id => { if (DIFF_OF[id]) c[DIFF_OF[id]]++; });   // recompute from IDs for consistency
+  Object.assign(r.thht, { nSelected: r.thht.selectedIds.length, easyCount: c.easy, mediumCount: c.medium, hardCount: c.hard,
+                          helpingScore: c.easy, hurtingScore: c.hard, differenceScore: c.hard - c.easy });
+  r.video = r.video || {}; r.debrief = r.debrief || {}; r.demographics = r.demographics || {};
+  r.manipulationCheck = r.manipulationCheck || {}; r.motivationCheck = r.motivationCheck || {};
+  if (r.debrief.retainData == null) r.debrief.retainData = r.debrief.dataDecision === 'keep';
+  r._source = 'imported';
+  return r;
+}
+function addRecords(list, highlight) {
+  let added = 0, replaced = 0;
+  list.forEach(r => {
+    const i = records.findIndex(x => x.participantId === r.participantId);
+    if (i >= 0) { records[i] = r; replaced++; } else { records.push(r); added++; }
+    if (highlight) { newIds.add(r.participantId); setTimeout(() => { newIds.delete(r.participantId); const tr = document.querySelector('tr[data-id="' + CSS.escape(r.participantId) + '"]'); if (tr) tr.classList.remove('is-new'); }, 4000); }
+  });
+  renderAll();
+  return { added, replaced };
+}
+async function importFiles(files) {
+  let ok = [], bad = 0;
+  for (const f of Array.from(files)) {
+    try {
+      const data = JSON.parse(await f.text());
+      const arr = Array.isArray(data) ? data : Array.isArray(data.results) ? data.results : [data];
+      arr.forEach(o => { const r = normaliseRecord(o); if (r) ok.push(r); else bad++; });
+    } catch (e) { bad++; }
+  }
+  const res = addRecords(ok, true);
+  if (ok.length) showMsg('ok', 'Imported ' + ok.length + ' session(s): ' + res.added + ' new, ' + res.replaced + ' replaced' + (bad ? '; ' + bad + ' item(s) skipped.' : '.'),
+                         '已导入 ' + ok.length + ' 个会话：新增 ' + res.added + ' 个，替换 ' + res.replaced + ' 个' + (bad ? '；跳过 ' + bad + ' 项。' : '。'));
+  else showMsg('err', 'No valid THHT results found in the selected file(s).', '所选文件中未找到有效的THHT结果数据。');
+}
+
+/* =====================================================================
+   11. SIMULATED LIVE UPDATES (demo only). With a database, replace this
+   with subscribeToDatabase(record => addRecords([record], true)).
+   ===================================================================== */
+const LIVE_INTERVAL_MS = 3000;
+function setLive(on) {
+  clearInterval(liveTimer); liveTimer = null;
+  const st = $('liveStatus');
+  if (on) {
+    liveTimer = setInterval(() => {
+      const r = makeDemoParticipant(new Date());
+      r.completedAt = r.completedAt ? new Date().toISOString() : null;
+      r._source = 'demo-live'; liveAdded++;
+      addRecords([r], true);
+      st.innerHTML = bi('Live: ' + liveAdded + ' simulated participant(s) added.', '实时：已添加 ' + liveAdded + ' 名模拟参与者。');
+    }, LIVE_INTERVAL_MS);
+    st.className = 'live-status on';
+    st.innerHTML = bi('Live: a new simulated participant every ' + LIVE_INTERVAL_MS / 1000 + ' s.', '实时：每 ' + LIVE_INTERVAL_MS / 1000 + ' 秒添加一名模拟参与者。');
+  } else {
+    st.className = 'live-status';
+    st.innerHTML = liveAdded ? bi('Paused.', '已暂停。') : '';
+  }
+}
+
+/* =====================================================================
+   12. INITIALISATION
+   ===================================================================== */
+async function init() {
+  // Data source: demo data now; a database later (see section 3).
+  let initial = null;
+  if (DATA_SOURCE === 'database') { try { initial = await loadFromDatabase(); } catch (e) { console.warn('Database load failed', e); } }
+  records = initial || generateDemoData(60);
+  if (DATA_SOURCE === 'database') subscribeToDatabase(r => addRecords([r], true));
+
+  if (window.Chart) createCharts();
+  else { $('chartFallback').hidden = false; $('chartsGrid').hidden = true; }
+
+  $('conditionFilter').addEventListener('change', e => { view.condition = e.target.value; renderAll(); });
+  $('tableSearch').addEventListener('input', e => { view.search = e.target.value; renderTable(filtered()); });
+  $('tableHead').addEventListener('click', e => {
+    const b = e.target.closest('button[data-key]'); if (!b) return;
+    if (view.sortKey === b.dataset.key) view.sortDir *= -1; else { view.sortKey = b.dataset.key; view.sortDir = 1; }
+    renderHead(); renderTable(filtered());
+    const nb = document.querySelector('#tableHead button[data-key="' + b.dataset.key + '"]'); if (nb) nb.focus();
+  });
+  $('btnCsv').addEventListener('click', exportCsv);
+  $('btnImport').addEventListener('click', () => $('fileInput').click());
+  $('fileInput').addEventListener('change', e => { if (e.target.files.length) importFiles(e.target.files); e.target.value = ''; });
+  const zone = $('importZone');
+  ['dragenter', 'dragover'].forEach(t => zone.addEventListener(t, e => { e.preventDefault(); zone.classList.add('drag'); }));
+  ['dragleave', 'drop'].forEach(t => zone.addEventListener(t, e => { e.preventDefault(); zone.classList.remove('drag'); }));
+  zone.addEventListener('drop', e => { if (e.dataTransfer && e.dataTransfer.files.length) importFiles(e.dataTransfer.files); });
+  $('liveToggle').addEventListener('change', e => setLive(e.target.checked));
+  $('btnReset').addEventListener('click', () => {
+    $('liveToggle').checked = false; setLive(false); liveAdded = 0; $('liveStatus').innerHTML = '';
+    records = generateDemoData(60); $('importMsg').hidden = true; renderAll();
+  });
+  renderAll();
+}
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
