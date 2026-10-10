@@ -243,6 +243,11 @@
   .cap-note { font-size: 14px; color: var(--text-muted); margin: 0 !important; }
 
   .puzzle-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+  /* v6: small neutral heading above each difficulty group (spans the grid row) */
+  .tier-heading { grid-column: 1 / -1; margin: 10px 0 -2px; padding-bottom: 4px; border-bottom: 1px solid var(--border);
+                  font-size: 14px; font-weight: 600; color: var(--text-muted); }
+  .tier-heading:first-child { margin-top: 0; }
+  .tier-heading .zh { font-size: 12.5px; font-weight: 500; margin-top: 0; }
   .puzzle-card {
     font: inherit; color: var(--text); background: var(--surface);
     border: 1px solid var(--border-strong); border-radius: var(--radius-control);
@@ -865,9 +870,9 @@ const STUDY_CONFIG = {
    3.2  THHT PUZZLE ARRAY CONFIGURATION
    30 puzzles, each with: id, label, difficulty, imagePlaceholder.
    Difficulty distribution is STRICTLY 10 easy / 10 medium / 10 hard.
-   The mapping is a fixed, interleaved (pseudo-random) assignment, so
-   every participant sees the same puzzle set and difficulty cannot be
-   inferred from position. Difficulty is used for scoring and, since the
+   v6 (researcher decision): the grid is ordered by difficulty (P01-P10
+   easy, P11-P20 medium, P21-P30 hard) under small group headings; every
+   participant sees the same fixed order. Difficulty is used for scoring and, since the
    v4 design change (researcher decision, deviating from the original
    spec), is also displayed on every card (see DIFFICULTY_DISPLAY).
    imagePlaceholder: stimulus key; shape: the tangram figure drawn by
@@ -945,10 +950,13 @@ const TANGRAM_SHAPES = {
   ]
 };
 
+/* v6 (researcher decision): puzzles are ordered BY DIFFICULTY and numbered
+   sequentially in that order: P01-P10 easy, P11-P20 medium, P21-P30 hard.
+   Each tier keeps its own shapes (TANGRAM_SHAPES.easy/medium/hard). */
 const DIFFICULTY_SEQUENCE = [
-  'medium','easy','hard','easy','hard','medium','hard','easy','medium','medium',
-  'easy','hard','medium','hard','easy','easy','medium','hard','hard','medium',
-  'easy','medium','hard','easy','hard','medium','easy','hard','medium','easy'
+  'easy','easy','easy','easy','easy','easy','easy','easy','easy','easy',
+  'medium','medium','medium','medium','medium','medium','medium','medium','medium','medium',
+  'hard','hard','hard','hard','hard','hard','hard','hard','hard','hard'
 ];
 
 const PUZZLES = (function buildPuzzles() {
@@ -1286,9 +1294,21 @@ function tangramSVG(index) {
 
 const CHECK_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" stroke="#fff" stroke-width="2" fill="none"/></svg>';
 
+/* v6: group headings shown above the first card of each difficulty tier. */
+const TIER_HEADINGS = {
+  easy:   ['Easy puzzles', '简单题'],
+  medium: ['Medium puzzles', '中等题'],
+  hard:   ['Hard puzzles', '困难题']
+};
 function renderPuzzleGrid() {
   const grid = $('puzzleGrid');
   PUZZLES.forEach((p, i) => {
+    if (i === 0 || PUZZLES[i - 1].difficulty !== p.difficulty) {
+      const h = document.createElement('h2');
+      h.className = 'tier-heading';
+      h.innerHTML = bi(TIER_HEADINGS[p.difficulty][0], TIER_HEADINGS[p.difficulty][1]);
+      grid.appendChild(h);
+    }
     const card = document.createElement('button');
     card.type = 'button';
     card.className = 'puzzle-card';

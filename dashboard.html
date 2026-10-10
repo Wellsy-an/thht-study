@@ -219,11 +219,16 @@ const $ = id => document.getElementById(id);
 const bi = (en, zh) => en + '<span class="zh" lang="zh-Hans">' + zh + '</span>';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-/* Same fixed puzzle-difficulty mapping as experiment.html (P01..P30). */
+/* Same fixed puzzle-difficulty mapping as experiment.html (P01..P30).
+   NOTE: session files exported before v6 used an interleaved mapping;
+   their counts would be recomputed with this new mapping on import. */
+/* v6 (researcher decision): experiment puzzles are ordered BY DIFFICULTY and numbered
+   sequentially in that order: P01-P10 easy, P11-P20 medium, P21-P30 hard.
+   Each tier keeps its own shapes (TANGRAM_SHAPES.easy/medium/hard). */
 const DIFFICULTY_SEQUENCE = [
-  'medium','easy','hard','easy','hard','medium','hard','easy','medium','medium',
-  'easy','hard','medium','hard','easy','easy','medium','hard','hard','medium',
-  'easy','medium','hard','easy','hard','medium','easy','hard','medium','easy'
+  'easy','easy','easy','easy','easy','easy','easy','easy','easy','easy',
+  'medium','medium','medium','medium','medium','medium','medium','medium','medium','medium',
+  'hard','hard','hard','hard','hard','hard','hard','hard','hard','hard'
 ];
 const PUZZLE_IDS = DIFFICULTY_SEQUENCE.map((d, i) => 'P' + String(i + 1).padStart(2, '0'));
 const DIFF_OF = Object.fromEntries(PUZZLE_IDS.map((id, i) => [id, DIFFICULTY_SEQUENCE[i]]));
