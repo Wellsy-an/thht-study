@@ -11,7 +11,7 @@
   ---------------------------------------------------------------------
   Purpose : Simulates a participant's first encounter with the
             Tangram Help/Hurt Task (THHT) inside a complete online
-            study (v7, 10 steps): consent -> video (random 2x2
+            study (v7, 10 steps): consent -> video (random 1:1 fruit violent/non-violent
             condition) -> attention item -> THHT instructions ->
             THHT selection -> Current Mood (8 SHS items) -> perceived
             violence -> belief check -> background -> debrief.
@@ -486,7 +486,7 @@
   <p class="step-kicker">Step 3 of 10<span class="zh" lang="zh-Hans">第 3 步，共 10 步</span></p>
   <h1 id="h-step3" tabindex="-1">A Question About the Video<span class="zh" lang="zh-Hans">关于视频的问题</span></h1>
   <fieldset class="question">
-    <legend><span class="q-num">1.</span><span id="attnQuestion">Which object appeared in the scene?<span class="zh" lang="zh-Hans">场景中出现了哪个物品？</span></span><span class="req" aria-hidden="true">*</span></legend>
+    <legend><span class="q-num">1.</span><span id="attnQuestion">In the wedding scene at the beginning of the video, what was the tomato wearing?<span class="zh" lang="zh-Hans">在视频开头的婚礼场景中，番茄穿着什么？</span></span><span class="req" aria-hidden="true">*</span></legend>
     <div class="options" id="objectOptions"><!-- rendered from the assigned video's attention config --></div>
   </fieldset>
   <div class="actions">
@@ -733,25 +733,25 @@ const STUDY_CONFIG = {
      time must be >= minWatchFraction x duration. */
   minWatchFraction: 0.95,
 
-  /* 2 x 2 between-subjects conditions (random assignment in the browser,
-     persisted in localStorage so a refresh never reassigns).
-     REQUIRED per condition: video_id, src (real video URL) and
-     attentionCorrectOptionId (one of attentionOptions ids below). */
+  /* 2 between-subjects conditions, same fruit-queen plot and length; only
+     violence differs (random 1:1 assignment in the browser, persisted in
+     localStorage so a refresh never reassigns).
+     REQUIRED per condition: video_id and src (real video URL).
+     The attention answer is shared by both versions (script shot 1, 00:00-00:06:
+     "番茄身穿白色婚纱" - the tomato wears a white wedding dress). */
   videos: {
-    fruit_violent:     { video_id: null, character_type: 'fruit',  violence_condition: 'violent',    src: null, attentionCorrectOptionId: null },
-    fruit_nonviolent:  { video_id: null, character_type: 'fruit',  violence_condition: 'nonviolent', src: null, attentionCorrectOptionId: null },
-    animal_violent:    { video_id: null, character_type: 'animal', violence_condition: 'violent',    src: null, attentionCorrectOptionId: null },
-    animal_nonviolent: { video_id: null, character_type: 'animal', violence_condition: 'nonviolent', src: null, attentionCorrectOptionId: null }
+    fruit_violent:    { video_id: null, character_type: 'fruit', violence_condition: 'violent',    src: null, attentionCorrectOptionId: 'white_wedding_dress' },
+    fruit_nonviolent: { video_id: null, character_type: 'fruit', violence_condition: 'nonviolent', src: null, attentionCorrectOptionId: 'white_wedding_dress' }
   },
   simulatedDurationSec: 18,        // preview-mode placeholder only
 
-  /* Neutral attention item: "Which object appeared in the scene?"
-     (options are the existing ones; the correct id is set per video above) */
+  /* Neutral attention item (identical in both conditions):
+     "In the wedding scene at the beginning of the video, what was the tomato wearing?" */
   attentionOptions: [
-    { id: 'umbrella', label: 'An umbrella',  zh: '一把雨伞' },
-    { id: 'bicycle',  label: 'A bicycle',    zh: '一辆自行车' },
-    { id: 'clock',    label: 'A wall clock', zh: '一个挂钟' },
-    { id: 'teapot',   label: 'A teapot',     zh: '一个茶壶' }
+    { id: 'red_evening_gown',    label: 'A red evening gown',    zh: '一件红色晚礼服' },
+    { id: 'white_wedding_dress', label: 'A white wedding dress', zh: '一件白色婚纱' },
+    { id: 'yellow_raincoat',     label: 'A yellow raincoat',     zh: '一件黄色雨衣' },
+    { id: 'green_sweater',       label: 'A green sweater',       zh: '一件绿色毛衣' }
   ],
 
   /* REQUIRED: the other participant's rule + reward, shown on the THHT
