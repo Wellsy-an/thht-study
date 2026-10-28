@@ -7,17 +7,18 @@
 <!--
   =====================================================================
   THHT ONLINE EXPERIMENT PROTOTYPE - BILINGUAL (English + Chinese)
-  (single file, no backend)
+  (single file; backend = STUDY_CONFIG.submitEndpoint, still missing)
   ---------------------------------------------------------------------
   Purpose : Simulates a participant's first encounter with the
             Tangram Help/Hurt Task (THHT) inside a complete online
-            study: video exposure -> attention check -> THHT ->
-            motivation / manipulation / suspicion checks ->
-            demographics -> debrief.
+            study (v7, 10 steps): consent -> video (random 2x2
+            condition) -> attention item -> THHT instructions ->
+            THHT selection -> Current Mood (8 SHS items) -> perceived
+            violence -> belief check -> background -> debrief.
   Structure of this file:
     1. <style>   Design tokens + layout (header, progress, step panels)
-    2. <body>    Fixed header with progress + 11 independent <section>
-                 step panels (data-step="1" ... data-step="11")
+    2. <body>    Fixed header with progress + 10 independent <section>
+                 step panels (data-step="1" ... data-step="10")
     3. <script>
         3.1  STUDY_CONFIG / VIDEO_CONFIG   editable study settings
         3.2  PUZZLES                       THHT puzzle array (30 items)
@@ -81,7 +82,7 @@
   .study-name { font-size: 14px; font-weight: 600; color: var(--text); margin: 0; }
   .step-indicator { font-size: 14px; color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .progress-track { height: 4px; background: #e6e9ed; }
-  .progress-fill { height: 4px; width: 0; background: var(--accent); transition: width .25s ease; }
+  .progress-fill { height: 4px; width: 0; background: var(--accent); }
 
   /* ---------------------------------------------------------------
      3. STEP PANELS
@@ -93,8 +94,7 @@
     border-radius: var(--radius-panel); padding: 36px 40px 32px;
   }
   .step.wide { max-width: 1040px; }
-  .step.is-entering { animation: fadeIn .18s ease-out; }
-  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .step.is-entering { animation: none; }
   @media (prefers-reduced-motion: reduce) {
     .step.is-entering { animation: none; }
     .progress-fill { transition: none; }
@@ -132,7 +132,7 @@
     font: inherit; font-weight: 600; font-size: 15px;
     min-height: 44px; padding: 10px 22px; border-radius: var(--radius-control);
     border: 1px solid var(--accent); background: var(--accent); color: #fff;
-    cursor: pointer; transition: background-color .15s ease, border-color .15s ease;
+    cursor: pointer;
     touch-action: manipulation;
   }
   .btn:hover:not(:disabled) { background: #233a53; border-color: #233a53; }
@@ -252,7 +252,6 @@
     font: inherit; color: var(--text); background: var(--surface);
     border: 1px solid var(--border-strong); border-radius: var(--radius-control);
     padding: 10px 8px 8px; cursor: pointer; text-align: center; position: relative;
-    transition: border-color .12s ease, background-color .12s ease;
   }
   .puzzle-card:hover:not(:disabled) { border-color: var(--accent); }
   .puzzle-card > svg { width: 100%; height: auto; display: block; aspect-ratio: 1 / 1; padding: 4px; }
@@ -372,73 +371,65 @@
   .modal-text { margin: 0 0 20px; line-height: 1.5; }
   .modal-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
   .download-note { margin-top: 8px; }
+  /* v7 additions: withdraw link, preview banner, error boxes */
+  .header-withdraw { max-width: 920px; margin: 0 auto; padding: 0 20px 6px; text-align: right; }
+  .link-btn { background: none; border: 0; padding: 4px 0; color: var(--text-muted); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
+  .link-btn .zh { display: inline; margin-left: 6px; font-size: 12px; }
+  .preview-banner { background: #f3f4f6; border-bottom: 1px solid var(--border-strong); text-align: center; font-size: 13px; padding: 6px 12px; color: var(--text-muted); }
+  .error-box { padding: 12px 14px; border-radius: var(--radius-control); border: 1px solid var(--error); background: #fbefee; color: var(--error); margin-top: 16px; font-size: 15px; }
+  .error-box .zh { color: inherit; }
+  .notice.is-warn { border-color: var(--text-muted); background: #f3f4f6; color: var(--text); }
 </style>
 </head>
 <body>
-
 <!-- =================================================================
      BILINGUAL CONVENTION
      Every English UI string is followed by its Chinese translation in a
      separate element: <span class="zh" lang="zh-Hans">...</span> (block, muted, smaller).
-     Languages are never mixed within one sentence. Dynamic strings are
-     produced by bi(en, zh) in the script.
+     Dynamic strings are produced by bi(en, zh) in the script.
      ================================================================= -->
 
-<!-- =================================================================
-     TOP LAYOUT: unified header + progress display (Step X of 11)
-     ================================================================= -->
+<!-- TOP LAYOUT: unified header + progress display (Step X of 10) -->
 <header class="site-header">
   <div class="header-inner">
     <p class="study-name">AI-Generated Short Videos and Online Decision-Making Study<span class="zh" lang="zh-Hans">AI生成短视频与在线决策研究</span></p>
-    <span class="step-indicator" id="stepIndicator" aria-live="polite">Step 1 of 11<span class="zh" lang="zh-Hans">第 1 步，共 11 步</span></span>
+    <span class="step-indicator" id="stepIndicator" aria-live="polite">Step 1 of 10<span class="zh" lang="zh-Hans">第 1 步，共 10 步</span></span>
   </div>
-  <div class="progress-track" role="progressbar" aria-label="Study progress" aria-valuemin="1" aria-valuemax="11" aria-valuenow="1" id="progressBar">
+  <div class="progress-track" role="progressbar" aria-label="Study progress" aria-valuemin="1" aria-valuemax="10" aria-valuenow="1" id="progressBar">
     <div class="progress-fill" id="progressFill"></div>
   </div>
+  <div class="header-withdraw"><button type="button" class="link-btn" id="btnWithdrawLink">Withdraw from the study<span class="zh" lang="zh-Hans">退出研究</span></button></div>
 </header>
+
+<div class="preview-banner" id="previewBanner" role="note" hidden>Researcher preview: placeholder materials are in use and no data are uploaded.<span class="zh" lang="zh-Hans">研究者预览：当前使用占位材料，数据不会上传。</span></div>
 
 <main id="main">
 
 <!-- =================================================================
-     STEP 1 - Welcome / Study Introduction
+     STEP 1 - Consent and Eligibility Check (first screen; no intro page)
+     Next is enabled only when BOTH checkboxes are ticked AND all required
+     study materials are configured (see REQUIRED CONFIG check).
      ================================================================= -->
 <section class="step" data-step="1" aria-labelledby="h-step1">
-  <p class="step-kicker">Step 1 of 11<span class="zh" lang="zh-Hans">第 1 步，共 11 步</span></p>
-  <h1 id="h-step1" tabindex="-1">AI-Generated Short Videos and Online Decision-Making Study<span class="zh" lang="zh-Hans">AI生成短视频与在线决策研究</span></h1>
-  <p>Thank you for your interest in this study. This is a study about AI-generated short videos and online decision-making.<span class="zh" lang="zh-Hans">感谢您对本研究的关注。这是一项关于AI生成短视频与在线决策的研究。</span></p>
-  <p>You will watch one short video and then complete several follow-up tasks and questions.<span class="zh" lang="zh-Hans">您将观看一段短视频，随后完成若干后续任务和问题。</span></p>
+  <p class="step-kicker">Step 1 of 10<span class="zh" lang="zh-Hans">第 1 步，共 10 步</span></p>
+  <h1 id="h-step1" tabindex="-1">Consent and Eligibility Check<span class="zh" lang="zh-Hans">知情同意与资格确认</span></h1>
+  <p>Thank you for your interest in this study about AI-generated short videos and online decision-making. Please read the following information before deciding whether to take part.<span class="zh" lang="zh-Hans">感谢您关注这项关于AI生成短视频与在线决策的研究。在决定是否参与之前，请阅读以下信息。</span></p>
   <dl class="meta-list">
     <dt>Duration<span class="zh" lang="zh-Hans">时长</span></dt><dd>Approximately 10–15 minutes<span class="zh" lang="zh-Hans">约10–15分钟</span></dd>
-    <dt>Participation<span class="zh" lang="zh-Hans">参与方式</span></dt><dd>Completely voluntary<span class="zh" lang="zh-Hans">完全自愿</span></dd>
     <dt>Requirements<span class="zh" lang="zh-Hans">参与要求</span></dt><dd>18 years or older; sound on is recommended<span class="zh" lang="zh-Hans">年满18周岁；建议开启声音</span></dd>
   </dl>
-  <p class="muted small">Please complete the study in one sitting and do not refresh the page.<span class="zh" lang="zh-Hans">请一次性完成本研究，不要刷新页面。</span></p>
-  <div class="actions">
-    <p class="hint">Select Begin to view the consent information.<span class="zh" lang="zh-Hans">点击“开始”查看知情同意信息。</span></p>
-    <button type="button" class="btn btn-large" id="btnBegin">Begin<span class="zh" lang="zh-Hans">开始</span></button>
-  </div>
-</section>
-
-<!-- =================================================================
-     STEP 2 - Consent and Eligibility Check
-     Next is enabled only when BOTH checkboxes are ticked.
-     ================================================================= -->
-<section class="step" data-step="2" aria-labelledby="h-step2" hidden>
-  <p class="step-kicker">Step 2 of 11<span class="zh" lang="zh-Hans">第 2 步，共 11 步</span></p>
-  <h1 id="h-step2" tabindex="-1">Consent and Eligibility Check<span class="zh" lang="zh-Hans">知情同意与资格确认</span></h1>
-  <p>Please read the following information before deciding whether to take part.<span class="zh" lang="zh-Hans">在决定是否参与之前，请阅读以下信息。</span></p>
 
   <h2>What you will do<span class="zh" lang="zh-Hans">您将完成的内容</span></h2>
-  <p>You will watch one short AI-generated video, complete a short task in which you make choices for another participant, and answer questions about the video, your choices and your media use.<span class="zh" lang="zh-Hans">您将观看一段AI生成的短视频，完成一项为另一位参与者做出选择的简短任务，并回答有关该视频、您的选择以及您的媒体使用情况的问题。</span></p>
+  <p>You will watch one short AI-generated video, complete a short task in which you make choices for another participant, and answer a few questions about how you feel, the video and your media use.<span class="zh" lang="zh-Hans">您将观看一段AI生成的短视频，完成一项为另一位参与者做出选择的简短任务，并回答几个关于您的感受、该视频以及您的媒体使用情况的问题。</span></p>
 
   <h2>Video content<span class="zh" lang="zh-Hans">视频内容</span></h2>
   <p>The video may contain mild, fictional, cartoon-style conflict or violence. It does not contain real injuries, gore or sexual violence.<span class="zh" lang="zh-Hans">视频可能包含轻度、虚构、卡通化的冲突或暴力内容。视频不包含真实伤害、血腥或性暴力内容。</span></p>
 
   <h2>Your rights<span class="zh" lang="zh-Hans">您的权利</span></h2>
   <ul>
-    <li>Participation is voluntary. You may withdraw at any time by closing this page, without giving a reason and without penalty.<span class="zh" lang="zh-Hans">参与完全自愿。您可以随时关闭本页面退出研究，无需说明理由，也不会受到任何不利影响。</span></li>
+    <li>Participation is voluntary. You may withdraw at any time, without giving a reason and without penalty, using the “Withdraw from the study” link at the top of every page or by closing this page.<span class="zh" lang="zh-Hans">参与完全自愿。您可以随时通过每页顶部的“退出研究”链接或直接关闭本页面退出研究，无需说明理由，也不会受到任何不利影响。</span></li>
     <li>This study is open only to people aged 18 years or above.<span class="zh" lang="zh-Hans">本研究仅限年满18周岁的人士参与。</span></li>
-    <li>Your data are anonymous. No names, email addresses or other identifying information are collected, and results are reported only in aggregate.<span class="zh" lang="zh-Hans">您的数据是匿名的。本研究不收集姓名、电子邮箱或其他可识别身份的信息，结果仅以汇总形式报告。</span></li>
+    <li>No names, email addresses or other identifying information are collected, and results are reported only in aggregate.<span class="zh" lang="zh-Hans">本研究不收集姓名、电子邮箱或其他可识别身份的信息，结果仅以汇总形式报告。</span></li>
   </ul>
 
   <h2>Your consent<span class="zh" lang="zh-Hans">您的同意</span></h2>
@@ -451,86 +442,77 @@
     <span>I consent to participate in this study.<span class="zh" lang="zh-Hans">我同意参与本研究。</span></span>
   </label>
 
+  <div class="error-box" id="configError" role="alert" hidden></div>
+
   <div class="actions">
-    <p class="hint" id="hint2">Please confirm both statements to continue.<span class="zh" lang="zh-Hans">请确认以上两项声明后继续。</span></p>
-    <button type="button" class="btn" id="btnNext2" disabled>Next<span class="zh" lang="zh-Hans">下一步</span></button>
+    <p class="hint" id="hint1">Please confirm both statements to continue.<span class="zh" lang="zh-Hans">请确认以上两项声明后继续。</span></p>
+    <button type="button" class="btn" id="btnNext1" disabled>Next<span class="zh" lang="zh-Hans">下一步</span></button>
   </div>
 </section>
 
 <!-- =================================================================
-     STEP 3 - Video Viewing Page
-     Next stays disabled until the video has ended (real "ended" event
-     or simulated playback). Watched state stored in state.video.
+     STEP 2 - Video Viewing (randomly assigned condition, no autoplay)
      ================================================================= -->
-<section class="step" data-step="3" aria-labelledby="h-step3" hidden>
-  <p class="step-kicker">Step 3 of 11<span class="zh" lang="zh-Hans">第 3 步，共 11 步</span></p>
-  <h1 id="h-step3" tabindex="-1">Video Viewing<span class="zh" lang="zh-Hans">观看视频</span></h1>
-  <p>Please watch the following short video carefully. You will answer a few questions afterward.<span class="zh" lang="zh-Hans">请认真观看以下短视频。之后您将回答几个问题。</span></p>
-  <p class="muted small">We recommend turning your sound on. The video must be watched to the end before you can continue.<span class="zh" lang="zh-Hans">建议您开启声音。您需要完整观看视频后才能继续。</span></p>
+<section class="step" data-step="2" aria-labelledby="h-step2" hidden>
+  <p class="step-kicker">Step 2 of 10<span class="zh" lang="zh-Hans">第 2 步，共 10 步</span></p>
+  <h1 id="h-step2" tabindex="-1">Video Viewing<span class="zh" lang="zh-Hans">观看视频</span></h1>
+  <p>Please watch the following short video carefully. Select Play to start. You will answer a few questions afterward.<span class="zh" lang="zh-Hans">请认真观看以下短视频。点击“播放”开始。之后您将回答几个问题。</span></p>
+  <p class="muted small">We recommend turning your sound on. You may pause and re-watch parts you have already seen. The video must be watched to the end before you can continue.<span class="zh" lang="zh-Hans">建议您开启声音。您可以暂停并重看已播放的部分。您需要完整观看视频后才能继续。</span></p>
 
   <div class="player">
-    <div class="player-frame" id="playerFrame">
-      <!-- Filled by initVideo(): a real <video> element when VIDEO_CONFIG.src
-           is set, otherwise the simulated placeholder player. -->
-    </div>
+    <div class="player-frame" id="playerFrame"><!-- filled by initVideo() --></div>
     <div class="player-controls">
       <div class="player-bar" aria-hidden="true"><div class="player-bar-fill" id="playerBarFill"></div></div>
       <span class="player-time" id="playerTime">0:00 / 0:00</span>
     </div>
     <p class="status-line" id="videoStatus" aria-live="polite">Not started<span class="zh" lang="zh-Hans">尚未开始</span></p>
+    <div class="error-box" id="videoError" role="alert" hidden>
+      <p>The video could not be loaded. Please check your connection and select Retry.<span class="zh" lang="zh-Hans">视频无法加载。请检查网络连接后点击“重试”。</span></p>
+      <button type="button" class="btn btn-secondary" id="btnVideoRetry">Retry<span class="zh" lang="zh-Hans">重试</span></button>
+    </div>
   </div>
 
   <div class="actions">
-    <p class="hint" id="hint3">The Next button becomes available when the video has finished.<span class="zh" lang="zh-Hans">视频播放结束后，“下一步”按钮才可点击。</span></p>
+    <p class="hint" id="hint2">The Next button becomes available when the video has finished.<span class="zh" lang="zh-Hans">视频播放结束后，“下一步”按钮才可点击。</span></p>
+    <button type="button" class="btn" id="btnNext2" disabled>Next<span class="zh" lang="zh-Hans">下一步</span></button>
+  </div>
+</section>
+
+<!-- =================================================================
+     STEP 3 - Attention Check: ONE neutral factual item.
+     Answer recorded once; no feedback, no re-watch, no exclusion.
+     ================================================================= -->
+<section class="step" data-step="3" aria-labelledby="h-step3" hidden>
+  <p class="step-kicker">Step 3 of 10<span class="zh" lang="zh-Hans">第 3 步，共 10 步</span></p>
+  <h1 id="h-step3" tabindex="-1">A Question About the Video<span class="zh" lang="zh-Hans">关于视频的问题</span></h1>
+  <fieldset class="question">
+    <legend><span class="q-num">1.</span><span id="attnQuestion">Which object appeared in the scene?<span class="zh" lang="zh-Hans">场景中出现了哪个物品？</span></span><span class="req" aria-hidden="true">*</span></legend>
+    <div class="options" id="objectOptions"><!-- rendered from the assigned video's attention config --></div>
+  </fieldset>
+  <div class="actions">
+    <p class="hint" id="hint3">Please answer the question to continue.<span class="zh" lang="zh-Hans">请回答以上问题后继续。</span></p>
     <button type="button" class="btn" id="btnNext3" disabled>Next<span class="zh" lang="zh-Hans">下一步</span></button>
   </div>
 </section>
 
 <!-- =================================================================
-     STEP 4 - Attention Check
-     Neutral detail question (4 options) + instructed-response item.
-     Both must be answered; correctness is recorded, not enforced.
+     STEP 4 - THHT Introduction and Instructions (+ existing rule box)
      ================================================================= -->
 <section class="step" data-step="4" aria-labelledby="h-step4" hidden>
-  <p class="step-kicker">Step 4 of 11<span class="zh" lang="zh-Hans">第 4 步，共 11 步</span></p>
-  <h1 id="h-step4" tabindex="-1">Attention Check<span class="zh" lang="zh-Hans">注意力检测</span></h1>
-  <p>Please answer the following questions. All questions are required.<span class="zh" lang="zh-Hans">请回答以下问题。所有问题均为必答题。</span></p>
-
-  <fieldset class="question">
-    <legend><span class="q-num">1.</span>Which object appeared in the scene?<span class="req" aria-hidden="true">*</span><span class="zh" lang="zh-Hans">场景中出现了哪个物品？</span></legend>
-    <div class="options" id="objectOptions"><!-- rendered from STUDY_CONFIG.attentionCheck --></div>
-  </fieldset>
-
-  <fieldset class="question">
-    <legend><span class="q-num">2.</span>To show that you are paying attention, please select “Somewhat agree.”<span class="req" aria-hidden="true">*</span><span class="zh" lang="zh-Hans">为表明您在认真作答，请选择“比较同意”。</span></legend>
-    <div id="instructedScale"><!-- 5-point agreement scale --></div>
-  </fieldset>
-
-  <div class="actions">
-    <p class="hint" id="hint4">Please answer both questions to continue.<span class="zh" lang="zh-Hans">请回答以上两个问题后继续。</span></p>
-    <button type="button" class="btn" id="btnNext4" disabled>Next<span class="zh" lang="zh-Hans">下一步</span></button>
-  </div>
-</section>
-
-<!-- =================================================================
-     STEP 5 - THHT Introduction and Instructions
-     Neutral cover-story wording; the purpose of the task is NOT revealed.
-     ================================================================= -->
-<section class="step" data-step="5" aria-labelledby="h-step5" hidden>
-  <p class="step-kicker">Step 5 of 11<span class="zh" lang="zh-Hans">第 5 步，共 11 步</span></p>
-  <h1 id="h-step5" tabindex="-1">Tangram Puzzle Task: Instructions<span class="zh" lang="zh-Hans">七巧板任务说明</span></h1>
+  <p class="step-kicker">Step 4 of 10<span class="zh" lang="zh-Hans">第 4 步，共 10 步</span></p>
+  <h1 id="h-step4" tabindex="-1">Tangram Puzzle Task: Instructions<span class="zh" lang="zh-Hans">七巧板任务说明</span></h1>
 
   <h2>What is a tangram puzzle?<span class="zh" lang="zh-Hans">什么是七巧板题？</span></h2>
   <p>A tangram is a classic puzzle made of seven flat geometric pieces: five triangles, one square and one parallelogram. To solve a tangram puzzle, a person arranges all seven pieces, without overlapping, to form a given outline shape.<span class="zh" lang="zh-Hans">七巧板是一种经典拼图，由七块平面几何图形组成：五个三角形、一个正方形和一个平行四边形。解答七巧板题时，需要将全部七块拼板不重叠地拼成指定的轮廓图形。</span></p>
 
   <h2>Your task<span class="zh" lang="zh-Hans">您的任务</span></h2>
-  <p>In the next task, you will select 11 tangram puzzles for another participant enrolled in this study.<span class="zh" lang="zh-Hans">在接下来的任务中，您将为本研究的另一位参与者选择11道七巧板题。</span></p>
+  <p>In the next task, you will select 11 tangram puzzles for another participant enrolled in this study. You will not solve any puzzles yourself; this task does not measure your own puzzle-solving ability.<span class="zh" lang="zh-Hans">在接下来的任务中，您将为本研究的另一位参与者选择11道七巧板题。您本人不需要解题；此任务并不测量您自己的拼图能力。</span></p>
   <ul>
-    <li>There are 30 puzzles in total, and they vary in difficulty.<span class="zh" lang="zh-Hans">共有30道题，难度各不相同。</span></li>
+    <li>There are 30 puzzles in total, grouped into Easy, Medium and Hard puzzles.<span class="zh" lang="zh-Hans">共有30道题，分为简单题、中等题和困难题三类。</span></li>
     <li>The other participant will attempt to solve the 11 puzzles you select.<span class="zh" lang="zh-Hans">另一位参与者将尝试完成您所选择的11道题。</span></li>
-    <li>If the other participant completes at least 10 of the 11 puzzles within the time limit, they may receive a small bonus.<span class="zh" lang="zh-Hans">如果另一位参与者在规定时间内完成11道题中的至少10道，可能会获得一笔小额奖励。</span></li>
+    <li id="rewardRule"><!-- filled from STUDY_CONFIG.rewardRuleText --></li>
   </ul>
-  <p>Please complete this task carefully and make your selections thoughtfully.<span class="zh" lang="zh-Hans">请认真完成此任务，并慎重做出选择。</span></p>
+  <p>There is no time limit for making your selection.<span class="zh" lang="zh-Hans">您选择题目没有时间限制。</span></p>
 
   <div class="info-box" role="note" aria-label="Selection rule">
     <p><strong>Selection rule</strong><span class="zh" lang="zh-Hans">选择规则</span></p>
@@ -539,7 +521,7 @@
       <span class="rule-arrow">→</span>
       <div class="rule-cell"><b>11</b><span>puzzles you select<span class="zh" lang="zh-Hans">道由您选择</span></span></div>
       <span class="rule-arrow">→</span>
-      <div class="rule-cell"><b>10 of 11</b><span>solved for the bonus<span class="zh" lang="zh-Hans">完成其中10道可获奖励</span></span></div>
+      <div class="rule-cell"><b>10 of 11</b><span>solved by the other participant<span class="zh" lang="zh-Hans">由另一位参与者完成其中10道</span></span></div>
     </div>
     <ul class="small">
       <li>Click a puzzle to select it. Click it again to deselect it.<span class="zh" lang="zh-Hans">点击题目即可选中，再次点击可取消选择。</span></li>
@@ -555,19 +537,14 @@
 </section>
 
 <!-- =================================================================
-     STEP 6 - THHT Selection Task (core)
-     30 cards, live "Selected: X / 11" counter, toggle, hard cap at 11,
-     Submit enabled only at exactly 11, confirmation dialog.
-     v4 DESIGN CHANGE (researcher decision, deviates from the PDF):
-     each card shows its difficulty (stars + label).
+     STEP 5 - THHT Selection Task (core; unchanged grid)
      ================================================================= -->
-<section class="step wide" data-step="6" aria-labelledby="h-step6" hidden>
-  <p class="step-kicker">Step 6 of 11<span class="zh" lang="zh-Hans">第 6 步，共 11 步</span></p>
-  <h1 id="h-step6" tabindex="-1">Tangram Selection Task<span class="zh" lang="zh-Hans">七巧板选题任务</span></h1>
+<section class="step wide" data-step="5" aria-labelledby="h-step5" hidden>
+  <p class="step-kicker">Step 5 of 10<span class="zh" lang="zh-Hans">第 5 步，共 10 步</span></p>
+  <h1 id="h-step5" tabindex="-1">Tangram Selection Task<span class="zh" lang="zh-Hans">七巧板选题任务</span></h1>
   <ul>
     <li>Please select 11 of the 30 puzzles below for another participant.<span class="zh" lang="zh-Hans">请从下列30道题中为另一位参与者选择11道。</span></li>
-    <li>Please choose carefully.<span class="zh" lang="zh-Hans">请认真选择。</span></li>
-    <li>The other participant may use the puzzles you select.<span class="zh" lang="zh-Hans">另一位参与者可能会使用您选择的题目。</span></li>
+    <li>You can review and change your choices before you submit. After submitting, your choices cannot be changed.<span class="zh" lang="zh-Hans">提交前您可以检查并修改选择；提交后选择将无法更改。</span></li>
   </ul>
 
   <div class="task-toolbar">
@@ -578,77 +555,64 @@
   <div class="puzzle-grid" id="puzzleGrid" role="group" aria-label="Tangram puzzles"><!-- rendered by renderPuzzleGrid() --></div>
 
   <div class="actions">
-    <p class="hint" id="hint6">Select exactly 11 puzzles to enable Submit.<span class="zh" lang="zh-Hans">恰好选择11道题后即可提交。</span></p>
+    <p class="hint" id="hint5">Select exactly 11 puzzles to enable Submit.<span class="zh" lang="zh-Hans">恰好选择11道题后即可提交。</span></p>
     <button type="button" class="btn" id="btnSubmitTHHT" disabled>Submit<span class="zh" lang="zh-Hans">提交</span></button>
   </div>
 </section>
 
 <!-- =================================================================
-     STEP 7 - Motivation Check (5-point Likert, all required)
+     STEP 6 - Current Mood (8 items adapted from the State Hostility
+     Scale; title/instructions deliberately neutral). Rendered from
+     STUDY_CONFIG.shsItems. Raw answers stored; scoring in buildResults().
      ================================================================= -->
-<section class="step" data-step="7" aria-labelledby="h-step7" hidden>
-  <p class="step-kicker">Step 7 of 11<span class="zh" lang="zh-Hans">第 7 步，共 11 步</span></p>
-  <h1 id="h-step7" tabindex="-1">About Your Puzzle Choices<span class="zh" lang="zh-Hans">关于您的选题</span></h1>
-  <p>Please indicate how much you agree with each statement about the puzzles you just selected (1 = Strongly disagree, 5 = Strongly agree). All items are required.<span class="zh" lang="zh-Hans">请就您刚才选择的题目，指出您对以下每项陈述的同意程度（1 = 非常不同意，5 = 非常同意）。所有题目均为必答题。</span></p>
-  <div id="motivationItems"><!-- rendered from STUDY_CONFIG.motivationItems --></div>
+<section class="step" data-step="6" aria-labelledby="h-step6" hidden>
+  <p class="step-kicker">Step 6 of 10<span class="zh" lang="zh-Hans">第 6 步，共 10 步</span></p>
+  <h1 id="h-step6" tabindex="-1">Current Mood<span class="zh" lang="zh-Hans">当前感受</span></h1>
+  <p>Please indicate how much you agree or disagree with each statement based on how you feel right now.<span class="zh" lang="zh-Hans">请根据你此刻的真实感受，判断你对以下每句话的同意程度。</span></p>
+  <div id="shsItems"></div>
   <div class="actions">
-    <p class="hint" id="hint7">Please answer all items to continue.<span class="zh" lang="zh-Hans">请回答所有题目后继续。</span></p>
+    <p class="hint" id="hint6">Please answer all items to continue.<span class="zh" lang="zh-Hans">请回答所有题目后继续。</span></p>
+    <button type="button" class="btn" id="btnNext6" disabled>Next<span class="zh" lang="zh-Hans">下一步</span></button>
+  </div>
+</section>
+
+<!-- STEP 7 - Video Impressions: ONE item (perceived_violence) -->
+<section class="step" data-step="7" aria-labelledby="h-step7" hidden>
+  <p class="step-kicker">Step 7 of 10<span class="zh" lang="zh-Hans">第 7 步，共 10 步</span></p>
+  <h1 id="h-step7" tabindex="-1">Video Impressions<span class="zh" lang="zh-Hans">视频感受</span></h1>
+  <fieldset class="question">
+    <legend><span class="q-num">1.</span>How violent was the video you just watched?<span class="req" aria-hidden="true">*</span><span class="zh" lang="zh-Hans">你认为刚才观看的视频有多暴力？</span></legend>
+    <div id="violenceScale"></div>
+  </fieldset>
+  <div class="actions">
+    <p class="hint" id="hint7">Please answer the question to continue.<span class="zh" lang="zh-Hans">请回答以上问题后继续。</span></p>
     <button type="button" class="btn" id="btnNext7" disabled>Next<span class="zh" lang="zh-Hans">下一步</span></button>
   </div>
 </section>
 
-<!-- =================================================================
-     STEP 8 - Manipulation Check (1-7 scales, all required)
-     ================================================================= -->
+<!-- STEP 8 - Study Experience: ONE item (believed_other_participant) -->
 <section class="step" data-step="8" aria-labelledby="h-step8" hidden>
-  <p class="step-kicker">Step 8 of 11<span class="zh" lang="zh-Hans">第 8 步，共 11 步</span></p>
-  <h1 id="h-step8" tabindex="-1">Your Impressions of the Video<span class="zh" lang="zh-Hans">您对视频的印象</span></h1>
-  <p>Please rate the video you watched earlier (1 = Not at all, 7 = Extremely). All items are required.<span class="zh" lang="zh-Hans">请对您之前观看的视频进行评分（1 = 完全没有，7 = 极其）。所有题目均为必答题。</span></p>
-  <div id="manipulationItems"><!-- rendered from STUDY_CONFIG.manipulationItems --></div>
+  <p class="step-kicker">Step 8 of 10<span class="zh" lang="zh-Hans">第 8 步，共 10 步</span></p>
+  <h1 id="h-step8" tabindex="-1">Study Experience<span class="zh" lang="zh-Hans">研究体验</span></h1>
   <fieldset class="question">
-    <legend><span class="q-num" id="seenBeforeNum">8.</span>Had you seen this video or a very similar one before?<span class="req" aria-hidden="true">*</span><span class="zh" lang="zh-Hans">您以前看过这个视频或非常相似的视频吗？</span></legend>
-    <div class="options" id="seenBeforeOptions"></div>
+    <legend><span class="q-num">1.</span>Did you believe that another participant would receive the puzzles you selected?<span class="req" aria-hidden="true">*</span><span class="zh" lang="zh-Hans">你是否相信另一位参与者会收到你所选择的七巧板题目？</span></legend>
+    <div class="options" id="beliefOptions"></div>
   </fieldset>
   <div class="actions">
-    <p class="hint" id="hint8">Please answer all items to continue.<span class="zh" lang="zh-Hans">请回答所有题目后继续。</span></p>
+    <p class="hint" id="hint8">Please answer the question to continue.<span class="zh" lang="zh-Hans">请回答以上问题后继续。</span></p>
     <button type="button" class="btn" id="btnNext8" disabled>Next<span class="zh" lang="zh-Hans">下一步</span></button>
   </div>
 </section>
 
 <!-- =================================================================
-     STEP 9 - Suspicion Check (1-7 belief item + open text)
-     Neutral, non-accusatory framing.
+     STEP 9 - Background (age, gender, daily short-video time, AI-content
+     frequency only). Exact age is not collected at consent, so it is
+     asked here once.
      ================================================================= -->
 <section class="step" data-step="9" aria-labelledby="h-step9" hidden>
-  <p class="step-kicker">Step 9 of 11<span class="zh" lang="zh-Hans">第 9 步，共 11 步</span></p>
-  <h1 id="h-step9" tabindex="-1">Your Experience of the Study<span class="zh" lang="zh-Hans">您的研究体验</span></h1>
-  <p>We are interested in how you experienced this study. There are no right or wrong answers.<span class="zh" lang="zh-Hans">我们希望了解您对本研究的体验。答案没有对错之分。</span></p>
-  <fieldset class="question">
-    <legend><span class="q-num">1.</span>To what extent did you believe that another participant would receive the puzzles you selected?<span class="req" aria-hidden="true">*</span><span class="zh" lang="zh-Hans">您在多大程度上相信另一位参与者会收到您选择的题目？</span></legend>
-    <div id="beliefScale"></div>
-  </fieldset>
-  <div class="question">
-    <label class="q-label" for="studyPurpose"><span class="q-num">2.</span>What do you think this study was mainly about?<span class="req" aria-hidden="true">*</span><span class="zh" lang="zh-Hans">您认为本研究主要是关于什么的？</span></label>
-    <textarea id="studyPurpose" rows="8" placeholder="Please describe in your own words.&#10;请用您自己的话进行描述。"></textarea>
-  </div>
-  <div class="actions">
-    <p class="hint" id="hint9">Please answer both questions to continue.<span class="zh" lang="zh-Hans">请回答以上两个问题后继续。</span></p>
-    <button type="button" class="btn" id="btnNext9" disabled>Next<span class="zh" lang="zh-Hans">下一步</span></button>
-  </div>
-</section>
-
-<!-- =================================================================
-     STEP 10 - Demographic and Media-use Questions (grouped, required)
-     Note: native <option> elements cannot contain markup, so in the two
-     drop-down menus the Chinese text follows the English in full-width
-     parentheses, e.g. "Woman（女性）".
-     ================================================================= -->
-<section class="step" data-step="10" aria-labelledby="h-step10" hidden>
-  <p class="step-kicker">Step 10 of 11<span class="zh" lang="zh-Hans">第 10 步，共 11 步</span></p>
-  <h1 id="h-step10" tabindex="-1">Demographic and Media-use Questions<span class="zh" lang="zh-Hans">人口统计与媒体使用问题</span></h1>
+  <p class="step-kicker">Step 9 of 10<span class="zh" lang="zh-Hans">第 9 步，共 10 步</span></p>
+  <h1 id="h-step9" tabindex="-1">Background Information<span class="zh" lang="zh-Hans">背景资料</span></h1>
   <p>All questions are required.<span class="zh" lang="zh-Hans">所有问题均为必答题。</span></p>
-
-  <p class="group-title">About you<span class="zh" lang="zh-Hans">关于您</span></p>
   <div class="question">
     <label class="q-label" for="age"><span class="q-num">1.</span>Age<span class="req" aria-hidden="true">*</span><span class="zh" lang="zh-Hans">年龄</span></label>
     <input type="number" id="age" min="18" max="99" step="1" inputmode="numeric" aria-describedby="ageError">
@@ -665,52 +629,26 @@
       <option value="prefer_not">Prefer not to say（不愿透露）</option>
     </select>
   </div>
-  <div class="question">
-    <label class="q-label" for="education"><span class="q-num">3.</span>Education level (highest completed)<span class="req" aria-hidden="true">*</span><span class="zh" lang="zh-Hans">教育程度（已完成的最高学历）</span></label>
-    <select id="education">
-      <option value="">Please select（请选择）</option>
-      <option value="secondary_or_below">Secondary school or below（中学及以下）</option>
-      <option value="vocational">Vocational or technical qualification（职业或技术资格）</option>
-      <option value="bachelor">Bachelor's degree（学士学位）</option>
-      <option value="master">Master's degree（硕士学位）</option>
-      <option value="doctorate">Doctoral degree（博士学位）</option>
-      <option value="other">Other（其他）</option>
-      <option value="prefer_not">Prefer not to say（不愿透露）</option>
-    </select>
-  </div>
-
-  <p class="group-title">Media use<span class="zh" lang="zh-Hans">媒体使用</span></p>
   <fieldset class="question">
-    <legend><span class="q-num">4.</span>Daily short-video viewing time: on a typical day, how long do you spend watching short videos?<span class="req" aria-hidden="true">*</span><span class="zh" lang="zh-Hans">每日短视频观看时长：在通常的一天里，您观看短视频的时间有多长？</span></legend>
+    <legend><span class="q-num">3.</span>Daily short-video viewing time: on a typical day, how long do you spend watching short videos?<span class="req" aria-hidden="true">*</span><span class="zh" lang="zh-Hans">每日短视频观看时长：在通常的一天里，您观看短视频的时间有多长？</span></legend>
     <div class="options" id="dailyTimeOptions"></div>
   </fieldset>
   <fieldset class="question">
-    <legend><span class="q-num">5.</span>How often do you watch AI-generated short videos?<span class="req" aria-hidden="true">*</span><span class="zh" lang="zh-Hans">您观看AI生成短视频的频率如何？</span></legend>
+    <legend><span class="q-num">4.</span>How often do you watch AI-generated content?<span class="req" aria-hidden="true">*</span><span class="zh" lang="zh-Hans">您观看AI生成内容的频率如何？</span></legend>
     <div id="aiFreqScale"></div>
   </fieldset>
-  <fieldset class="question">
-    <legend><span class="q-num">6.</span>How often do you watch violent short-form videos?<span class="req" aria-hidden="true">*</span><span class="zh" lang="zh-Hans">您观看暴力类短视频的频率如何？</span></legend>
-    <div id="violentFreqScale"></div>
-  </fieldset>
-  <fieldset class="question">
-    <legend><span class="q-num">7.</span>Have you previously seen Fruit Queen-type or similar AI videos?<span class="req" aria-hidden="true">*</span><span class="zh" lang="zh-Hans">您以前看过“水果女王”类或类似的AI视频吗？</span></legend>
-    <div class="options" id="fruitQueenOptions"></div>
-  </fieldset>
-
   <div class="actions">
-    <p class="hint" id="hint10">Please answer all questions to continue.<span class="zh" lang="zh-Hans">请回答所有问题后继续。</span></p>
-    <button type="button" class="btn" id="btnNext10" disabled>Next<span class="zh" lang="zh-Hans">下一步</span></button>
+    <p class="hint" id="hint9">Please answer all questions to continue.<span class="zh" lang="zh-Hans">请回答所有问题后继续。</span></p>
+    <button type="button" class="btn" id="btnNext9" disabled>Next<span class="zh" lang="zh-Hans">下一步</span></button>
   </div>
 </section>
 
 <!-- =================================================================
-     STEP 11 - Debrief Page
-     Two data-retention buttons; the choice is recorded and the final
-     results summary object is displayed (demo only).
+     STEP 10 - Debrief, data decision and submission status
      ================================================================= -->
-<section class="step" data-step="11" aria-labelledby="h-step11" hidden>
-  <p class="step-kicker">Step 11 of 11<span class="zh" lang="zh-Hans">第 11 步，共 11 步</span></p>
-  <h1 id="h-step11" tabindex="-1">Debriefing<span class="zh" lang="zh-Hans">研究说明</span></h1>
+<section class="step" data-step="10" aria-labelledby="h-step10" hidden>
+  <p class="step-kicker">Step 10 of 10<span class="zh" lang="zh-Hans">第 10 步，共 10 步</span></p>
+  <h1 id="h-step10" tabindex="-1">Debriefing<span class="zh" lang="zh-Hans">研究说明</span></h1>
   <p><strong>Thank you for taking part in this study.</strong> Your time and effort are greatly appreciated. Please read the following information about the study.<span class="zh" lang="zh-Hans">感谢您参与本研究。我们非常感谢您付出的时间和精力。请阅读以下关于本研究的信息。</span></p>
 
   <h2>The purpose of this study<span class="zh" lang="zh-Hans">本研究的目的</span></h2>
@@ -723,35 +661,56 @@
   <p>No real participant will be harmed by, or lose any payment because of, the puzzles you selected.<span class="zh" lang="zh-Hans">不会有任何真实参与者因您选择的题目而受到伤害或失去任何报酬。</span></p>
 
   <h2>If you feel uncomfortable<span class="zh" lang="zh-Hans">如果您感到不适</span></h2>
-  <p>If any part of this study made you feel uncomfortable or distressed, please contact the researcher at <strong>[researcher name, email address]</strong>, or contact <strong>[university counselling / student support service, contact details]</strong>.<span class="zh" lang="zh-Hans">如果本研究的任何部分让您感到不适或困扰，请联系研究者<strong>[研究者姓名、电子邮箱]</strong>，或联系<strong>[学校心理咨询或学生支持服务的联系方式]</strong>。</span></p>
+  <p id="debriefSupport"><!-- filled from STUDY_CONFIG.contacts --></p>
 
   <h2>Your data<span class="zh" lang="zh-Hans">您的数据</span></h2>
-  <p>Now that you know the real purpose of the study, you may decide whether your data are kept. Your decision has no consequences for you. Please choose one option.<span class="zh" lang="zh-Hans">在了解本研究的真实目的后，您可以决定是否保留您的数据。您的决定不会对您产生任何影响。请选择以下其中一项。</span></p>
+  <p id="debriefWithdrawal"><!-- filled from STUDY_CONFIG.withdrawalPolicyText --></p>
+  <p>Your decision has no consequences for you. Please choose one option.<span class="zh" lang="zh-Hans">您的决定不会对您产生任何影响。请选择以下其中一项。</span></p>
 
   <div class="decision-buttons">
     <button type="button" class="btn" id="btnKeepData">I agree to keep my data in the study.<span class="zh" lang="zh-Hans">我同意在研究中保留我的数据。</span></button>
     <button type="button" class="btn btn-secondary" id="btnWithdrawData">I would prefer to withdraw my data after debriefing.<span class="zh" lang="zh-Hans">了解研究说明后，我希望撤回我的数据。</span></button>
   </div>
   <div class="notice" id="decisionNotice" role="status" hidden></div>
+  <div class="error-box" id="uploadError" role="alert" hidden>
+    <p>Your responses could not be uploaded. Please check your connection and select Try again. Do not close this page yet.<span class="zh" lang="zh-Hans">您的回答未能上传。请检查网络连接后点击“重试”。请暂时不要关闭本页面。</span></p>
+    <button type="button" class="btn btn-secondary" id="btnRetryUpload">Try again<span class="zh" lang="zh-Hans">重试</span></button>
+  </div>
 
-  <!-- DEMO ONLY: shows the final results summary object. Remove in a real deployment. -->
+  <!-- RESEARCHER TEST EXPORT: only shown in ?preview=1 mode. Not a data-collection system. -->
   <div class="results-panel" id="resultsPanel" hidden>
-    <h2>Session data (demo)<span class="zh" lang="zh-Hans">会话数据（演示）</span></h2>
-    <p class="muted small">Prototype view of the final results object that would be sent to the research server. Shown here for demonstration only.<span class="zh" lang="zh-Hans">这是将发送至研究服务器的最终结果对象的原型视图，仅供演示。</span></p>
+    <h2>Researcher test export (preview only)<span class="zh" lang="zh-Hans">研究者测试导出（仅预览）</span></h2>
+    <p class="muted small">This is a local test copy of the record. It has not been uploaded and is not a data-collection system.<span class="zh" lang="zh-Hans">这是本地测试记录，尚未上传，也不是正式数据收集系统。</span></p>
     <pre id="resultsJson"></pre>
     <button type="button" class="btn btn-secondary" id="btnDownload">Download JSON<span class="zh" lang="zh-Hans">下载 JSON</span></button>
-    <p class="muted small download-note" id="downloadNote" role="status" hidden>If no file was downloaded (some embedded previews block downloads), please copy the data shown above.<span class="zh" lang="zh-Hans">如果文件未能下载（某些嵌入式预览会阻止下载），请复制上方显示的数据。</span></p>
+    <button type="button" class="btn btn-secondary" id="btnDownloadCsv">Download CSV<span class="zh" lang="zh-Hans">下载 CSV</span></button>
+  </div>
+</section>
+
+<!-- Withdrawal screen (not a numbered step). Reached from the header link. -->
+<section class="step" data-step="withdraw" aria-labelledby="h-withdraw" hidden>
+  <h1 id="h-withdraw" tabindex="-1">Withdraw from the study<span class="zh" lang="zh-Hans">退出研究</span></h1>
+  <div id="withdrawConfirmBox">
+    <p>Do you want to stop taking part? Withdrawing has no consequences for you. The responses you have given so far will not be used.<span class="zh" lang="zh-Hans">您确定要停止参与吗？退出不会对您产生任何影响。您目前为止的回答将不会被使用。</span></p>
+    <div class="actions">
+      <button type="button" class="btn btn-secondary" id="btnWithdrawCancel">Return to the study<span class="zh" lang="zh-Hans">返回研究</span></button>
+      <button type="button" class="btn" id="btnWithdrawConfirm">Withdraw<span class="zh" lang="zh-Hans">确认退出</span></button>
+    </div>
+  </div>
+  <div id="withdrawDoneBox" hidden>
+    <p>You have withdrawn from the study. Thank you for your time. You may now close this page.<span class="zh" lang="zh-Hans">您已退出本研究。感谢您付出的时间。您现在可以关闭本页面。</span></p>
+    <p id="withdrawSupport"></p>
   </div>
 </section>
 
 </main>
 
-<!-- In-page confirmation modal for the THHT Submit step (replaces window.confirm()). -->
+<!-- In-page confirmation modal for the THHT Submit step. -->
 <div class="modal-overlay" id="confirmOverlay" hidden>
   <div class="modal" id="confirmDialog" role="dialog" aria-modal="true" aria-labelledby="confirmText">
-    <p class="modal-text" id="confirmText">You have selected 11 puzzles for the other participant. Submit your choices?<span class="zh" lang="zh-Hans">您已为另一位参与者选择了11道题。是否提交您的选择？</span></p>
+    <p class="modal-text" id="confirmText">You have selected 11 puzzles for the other participant. Submit your choices? After submitting they cannot be changed.<span class="zh" lang="zh-Hans">您已为另一位参与者选择了11道题。是否提交您的选择？提交后将无法更改。</span></p>
     <div class="modal-actions">
-      <button type="button" class="btn btn-secondary" id="btnConfirmCancel">Cancel<span class="zh" lang="zh-Hans">取消</span></button>
+      <button type="button" class="btn btn-secondary" id="btnConfirmCancel">Review choices<span class="zh" lang="zh-Hans">返回检查</span></button>
       <button type="button" class="btn" id="btnConfirmSubmit">Submit<span class="zh" lang="zh-Hans">提交</span></button>
     </div>
   </div>
@@ -761,98 +720,90 @@
 "use strict";
 
 /* =====================================================================
-   3.1  STUDY CONFIGURATION
-   Edit these values to adapt the prototype to a real study.
+   3.1  RESEARCHER CONFIG  (edit ONLY this block for the formal study)
+   ---------------------------------------------------------------------
+   Every value marked  REQUIRED  is still null = MISSING. Do not invent
+   values. While any REQUIRED value is null the consent page shows a
+   bilingual "study not yet open" message and the study cannot start.
+   (?preview=1 lets researchers test the flow with a simulated video;
+   nothing is uploaded in preview mode.)
    ===================================================================== */
-const TOTAL_STEPS = 11;
-
-/* Bilingual helper: English text followed by its Chinese translation in a
-   separate block element (languages are never mixed within one sentence). */
-const bi = (en, zh) => en + '<span class="zh" lang="zh-Hans">' + zh + '</span>';
-
-/* ---------------------------------------------------------------------
-   DIFFICULTY DISPLAY ON PUZZLE CARDS
-   DESIGN CHANGE (v4, researcher decision): difficulty is now SHOWN to
-   participants on every puzzle card (stars + label). This deliberately
-   deviates from the original instruction PDF, which kept difficulty hidden.
-   Each card shows one line: stars + English label, with the Chinese label on
-   its own line below (one star = easy,
-   two = medium, three = hard). The stimulus shapes still differ visually
-   by tier (see TANGRAM_SHAPES). The former researcher-only view
-   (?researcher=1 badges and banner) was removed because the labels are
-   now visible to everyone.
-   --------------------------------------------------------------------- */
-const DIFFICULTY_DISPLAY = {
-  easy:   { stars: '\u2605\u2606\u2606', en: 'Easy',   zh: '简单' },
-  medium: { stars: '\u2605\u2605\u2606', en: 'Medium', zh: '中等' },
-  hard:   { stars: '\u2605\u2605\u2605', en: 'Hard',   zh: '困难' }
-};
-/* Returns the difficulty line for one puzzle card. */
-function difficultyLineHTML(difficulty) {
-  const d = DIFFICULTY_DISPLAY[difficulty];
-  return '<span class="card-difficulty"><span class="stars" aria-hidden="true">' + d.stars + '</span>' + bi(d.en, d.zh) + '</span>';
-}
-const REQUIRED_SELECTIONS = 11;   // THHT: participant must pick exactly 11
-
-/* Video stimulus.
-   - src: leave '' to use the simulated placeholder player. Set it to a
-          file/URL (e.g. 'stimuli/condition_A.mp4') to use a real <video>;
-          completion is then detected by the native "ended" event.
-   - simulatedDurationSec: length of the simulated placeholder playback.
-   - condition: video condition label stored with the data
-                (assign per participant in a real study).            */
-const VIDEO_CONFIG = {
-  src: '',
-  simulatedDurationSec: 18,
-  condition: 'placeholder'
-};
-
 const STUDY_CONFIG = {
-  /* Step 4 attention check: neutral detail from the video (never the
-     conflict itself). correctOptionId must match the real stimulus. */
-  attentionCheck: {
-    options: [
-      { id: 'umbrella', label: 'An umbrella',  zh: '一把雨伞' },
-      { id: 'bicycle',  label: 'A bicycle',    zh: '一辆自行车' },
-      { id: 'clock',    label: 'A wall clock', zh: '一个挂钟' },
-      { id: 'teapot',   label: 'A teapot',     zh: '一个茶壶' }
-    ],
-    correctOptionId: 'clock'
+  study_id: 'thht_ai_video',
+  protocol_version: 'thht-online-v7',
+  shs_version: 'shs8-adapted-v1',
+
+  /* REQUIRED: HTTPS endpoint that accepts a JSON POST of one record and
+     answers 2xx only after the record is stored. null = no backend. */
+  submitEndpoint: null,
+
+  /* Watch requirement: the video must fire "ended" AND the actually played
+     time must be >= minWatchFraction x duration. */
+  minWatchFraction: 0.95,
+
+  /* 2 x 2 between-subjects conditions (random assignment in the browser,
+     persisted in localStorage so a refresh never reassigns).
+     REQUIRED per condition: video_id, src (real video URL) and
+     attentionCorrectOptionId (one of attentionOptions ids below). */
+  videos: {
+    fruit_violent:     { video_id: null, character_type: 'fruit',  violence_condition: 'violent',    src: null, attentionCorrectOptionId: null },
+    fruit_nonviolent:  { video_id: null, character_type: 'fruit',  violence_condition: 'nonviolent', src: null, attentionCorrectOptionId: null },
+    animal_violent:    { video_id: null, character_type: 'animal', violence_condition: 'violent',    src: null, attentionCorrectOptionId: null },
+    animal_nonviolent: { video_id: null, character_type: 'animal', violence_condition: 'nonviolent', src: null, attentionCorrectOptionId: null }
   },
-  instructedTarget: 4,            // "Somewhat agree" = point 4 of the 5-point scale
-  /* Scale point labels are [English, Chinese] pairs; '' = number only. */
-  agree5: [['Strongly disagree', '非常不同意'], ['Somewhat disagree', '比较不同意'], ['Neither agree nor disagree', '既不同意也不反对'], ['Somewhat agree', '比较同意'], ['Strongly agree', '非常同意']],
+  simulatedDurationSec: 18,        // preview-mode placeholder only
 
-  /* Step 7: motivation check, 5-point Likert, all required */
-  motivationItems: [
-    { id: 'mot_easier',  text: 'I wanted to make it easier for the other participant to earn the bonus.', zh: '我希望让另一位参与者更容易获得奖励。' },
-    { id: 'mot_harder',  text: 'I wanted to make it more difficult for the other participant to earn the bonus.', zh: '我希望让另一位参与者更难获得奖励。' },
-    { id: 'mot_careful', text: 'I chose the puzzles carefully.', zh: '我认真地选择了题目。' }
+  /* Neutral attention item: "Which object appeared in the scene?"
+     (options are the existing ones; the correct id is set per video above) */
+  attentionOptions: [
+    { id: 'umbrella', label: 'An umbrella',  zh: '一把雨伞' },
+    { id: 'bicycle',  label: 'A bicycle',    zh: '一辆自行车' },
+    { id: 'clock',    label: 'A wall clock', zh: '一个挂钟' },
+    { id: 'teapot',   label: 'A teapot',     zh: '一个茶壶' }
   ],
 
-  /* Step 8: manipulation check, 1-7, all required.
-     First five items are the core protocol items; the last two are the
-     optional extra items from the protocol. */
-  manipulationItems: [
-    { id: 'man_violent',     text: 'How violent was the video?',              zh: '该视频的暴力程度如何？' },
-    { id: 'man_arousing',    text: 'How emotionally arousing was the video?', zh: '该视频在多大程度上引起了您的情绪唤起？' },
-    { id: 'man_disgusting',  text: 'How disgusting was the video?',           zh: '该视频令人恶心的程度如何？' },
-    { id: 'man_funny',       text: 'How funny was the video?',                zh: '该视频的有趣程度如何？' },
-    { id: 'man_realistic',   text: 'How realistic did the video seem?',       zh: '该视频看起来有多真实？' },
-    { id: 'man_frightening', text: 'How frightening was the video?',          zh: '该视频令人恐惧的程度如何？' },
-    { id: 'man_engaging',    text: 'How engaging was the video?',             zh: '该视频的吸引力如何？' }
+  /* REQUIRED: the other participant's rule + reward, shown on the THHT
+     instructions page. Format { en: '...', zh: '...' }. Example of the
+     intended rule (reward wording still to be decided by the researcher):
+     "they have 10 minutes and must solve at least 10 of the 11 puzzles to ..." */
+  rewardRuleText: null,
+
+  /* REQUIRED: contacts shown in the debrief. Format { en: '...', zh: '...' }. */
+  contacts: {
+    researcher: null,              // researcher name + email
+    support: null                  // counselling / support service
+  },
+
+  /* REQUIRED: withdrawal promise shown in the debrief. Must match how data
+     are actually stored (e.g. records are anonymous and keyed only by the
+     random participant_id; withdrawal is possible until <date> by quoting
+     the ID). Format { en: '...', zh: '...' }. */
+  withdrawalPolicyText: null,
+
+  /* ---- Fixed questionnaire content (not editable per study run) ---- */
+  /* Current Mood: 8 items adapted from the State Hostility Scale
+     (Anderson, Deuser & DeNeve, 1995). reverse: true -> scored 6 - x. */
+  shsItems: [
+    { id: 'shs01', text: 'I feel furious.',              zh: '我此刻感到非常愤怒。',           reverse: false },
+    { id: 'shs02', text: 'I feel friendly.',             zh: '我此刻对人感到友善。',           reverse: true  },
+    { id: 'shs03', text: 'I feel irritated.',            zh: '我此刻感到烦躁。',               reverse: false },
+    { id: 'shs04', text: 'I feel understanding.',        zh: '我此刻能够体谅他人。',           reverse: true  },
+    { id: 'shs05', text: 'I feel angry.',                zh: '我此刻感到生气。',               reverse: false },
+    { id: 'shs06', text: 'I feel cooperative.',          zh: '我此刻愿意与人合作。',           reverse: true  },
+    { id: 'shs07', text: 'I feel like yelling at somebody.', zh: '我此刻想对某个人大喊大叫。', reverse: false },
+    { id: 'shs08', text: 'I feel good-natured.',         zh: '我此刻心态温和，不容易动怒。',   reverse: true  }
   ],
-  scale7: [['Not at all', '完全没有'], '', '', '', '', '', ['Extremely', '极其']],
-  scale7Anchors: [['1 = Not at all', '1 = 完全没有'], ['7 = Extremely', '7 = 极其']],
-  seenBeforeOptions: [
+  shsMetadata: {
+    note: 'Project-specific eight-item adaptation selected from the State Hostility Scale; Chinese wording is a study translation, not a validated Chinese short form.',
+    citation: 'Anderson, C. A., Deuser, W. E., & DeNeve, K. M. (1995). Hot temperatures, hostile affect, hostile cognition, and arousal: Tests of a general model of affective aggression. Personality and Social Psychology Bulletin, 21(5), 434-448.',
+    doi: 'https://doi.org/10.1177/0146167295215002',
+    source: 'http://www.craiganderson.org/wp-content/uploads/caa/Scales/Shos.pdf'
+  },
+  agree5: [['Strongly disagree', '非常不同意'], ['Disagree', '不同意'], ['Neither agree nor disagree', '既不同意也不反对'], ['Agree', '同意'], ['Strongly agree', '非常同意']],
+  violence5: [['Not at all violent', '完全不暴力'], ['Slightly violent', '有一点暴力'], ['Moderately violent', '中等程度暴力'], ['Very violent', '很暴力'], ['Extremely violent', '极其暴力']],
+  beliefOptions: [
     { id: 'yes', label: 'Yes', zh: '是' }, { id: 'no', label: 'No', zh: '否' }, { id: 'not_sure', label: 'Not sure', zh: '不确定' }
   ],
-
-  /* Step 9: suspicion check belief scale */
-  belief7: [['Not at all', '完全不相信'], '', '', '', '', '', ['Completely', '完全相信']],
-  belief7Anchors: [['1 = Not at all', '1 = 完全不相信'], ['7 = Completely', '7 = 完全相信']],
-
-  /* Step 10: media-use response options */
   dailyTimeOptions: [
     { id: 'lt30',  label: 'Less than 30 minutes', zh: '少于30分钟' },
     { id: '30_60', label: '30 minutes to 1 hour', zh: '30分钟至1小时' },
@@ -860,11 +811,46 @@ const STUDY_CONFIG = {
     { id: '2_3h',  label: '2 to 3 hours',         zh: '2至3小时' },
     { id: 'gt3h',  label: 'More than 3 hours',    zh: '超过3小时' }
   ],
-  freq5: [['Never', '从不'], ['Rarely', '很少'], ['Sometimes', '有时'], ['Often', '经常'], ['Very often', '非常频繁']],
-  fruitQueenOptions: [
-    { id: 'yes', label: 'Yes', zh: '是' }, { id: 'no', label: 'No', zh: '否' }, { id: 'unsure', label: 'Unsure', zh: '不确定' }
-  ]
+  freq5: [['Never', '从不'], ['Rarely', '很少'], ['Sometimes', '有时'], ['Often', '经常'], ['Very often', '非常频繁']]
 };
+
+/* Lists every REQUIRED config value that is still missing (null). */
+function missingConfig() {
+  const m = [];
+  if (!STUDY_CONFIG.submitEndpoint) m.push('submitEndpoint');
+  Object.keys(STUDY_CONFIG.videos).forEach(k => {
+    const v = STUDY_CONFIG.videos[k];
+    if (!v.video_id) m.push('videos.' + k + '.video_id');
+    if (!v.src) m.push('videos.' + k + '.src');
+    if (!v.attentionCorrectOptionId) m.push('videos.' + k + '.attentionCorrectOptionId');
+  });
+  if (!STUDY_CONFIG.rewardRuleText) m.push('rewardRuleText');
+  if (!STUDY_CONFIG.contacts.researcher) m.push('contacts.researcher');
+  if (!STUDY_CONFIG.contacts.support) m.push('contacts.support');
+  if (!STUDY_CONFIG.withdrawalPolicyText) m.push('withdrawalPolicyText');
+  return m;
+}
+const PREVIEW = new URLSearchParams(location.search).get('preview') === '1';
+const MISSING = missingConfig();
+
+const TOTAL_STEPS = 10;
+
+/* Bilingual helper: English text followed by its Chinese translation in a
+   separate block element (languages are never mixed within one sentence). */
+const bi = (en, zh) => en + '<span class="zh" lang="zh-Hans">' + zh + '</span>';
+const biCfg = (t, fallbackEn, fallbackZh) => t ? bi(t.en, t.zh) : bi(fallbackEn, fallbackZh);
+
+/* DIFFICULTY DISPLAY ON PUZZLE CARDS (unchanged): stars + label per card. */
+const DIFFICULTY_DISPLAY = {
+  easy:   { stars: '\u2605\u2606\u2606', en: 'Easy',   zh: '简单' },
+  medium: { stars: '\u2605\u2605\u2606', en: 'Medium', zh: '中等' },
+  hard:   { stars: '\u2605\u2605\u2605', en: 'Hard',   zh: '困难' }
+};
+function difficultyLineHTML(difficulty) {
+  const d = DIFFICULTY_DISPLAY[difficulty];
+  return '<span class="card-difficulty"><span class="stars" aria-hidden="true">' + d.stars + '</span>' + bi(d.en, d.zh) + '</span>';
+}
+const REQUIRED_SELECTIONS = 11;   // THHT: participant must pick exactly 11
 
 /* =====================================================================
    3.2  THHT PUZZLE ARRAY CONFIGURATION
@@ -979,58 +965,80 @@ const PUZZLES = (function buildPuzzles() {
 })();
 
 /* =====================================================================
-   3.3  DATA STATE OBJECT
-   Single source of truth for everything recorded during the session.
+   3.3  DATA STATE OBJECT  (persisted in localStorage on every change so
+   a refresh resumes the same session: same participant_id, same
+   condition, no duplicate record)
    ===================================================================== */
-const state = {
-  participantId: 'anon-' + Math.random().toString(36).slice(2, 10), // random, non-identifying
-  currentStep: 1,                  // current step (1-11)
-  startedAt: new Date().toISOString(),
-  stepTimestamps: {},              // { "1": ISO time the step was entered, ... }
-  consent: { age18: false, consent: false, timestamp: null },
-  video: {                         // video viewing state
-    condition: VIDEO_CONFIG.condition,
-    mode: VIDEO_CONFIG.src ? 'real' : 'simulated',
-    started: false,
-    watched: false,                // true once playback reached the end
-    watchedAt: null
-  },
-  attention: { objectAnswer: null, instructedAnswer: null },  // attention-check answers
-  thht: {                          // THHT selected puzzles + timing
-    selectedIds: [],               // IDs of currently selected puzzles
-    startTime: null,               // ms timestamp when "Start Task" was clicked
-    endTime: null                  // ms timestamp when the selection was submitted
-  },
-  scales: {},                      // all Likert / rating answers: { itemId: number }
-  choices: {},                     // other single-choice answers: { questionId: optionId }
-  text: { studyPurpose: '' },      // open text inputs
-  demographics: { age: null, gender: '', education: '' },
-  debrief: { dataDecision: null, decidedAt: null }   // 'keep' | 'withdraw'
-};
+const STORAGE_KEY = PREVIEW ? 'thht_v7_preview_session' : 'thht_v7_session';
+const CONDITION_KEYS = Object.keys(STUDY_CONFIG.videos);
+
+function newState() {
+  const rnd = (window.crypto && crypto.getRandomValues) ? crypto.getRandomValues(new Uint32Array(1))[0] : Math.floor(Math.random() * 4294967296);
+  const condition = CONDITION_KEYS[rnd % CONDITION_KEYS.length];
+  const pid = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'anon-' + Math.random().toString(36).slice(2, 12);
+  return {
+    participantId: pid,
+    condition: condition,
+    preview: PREVIEW,
+    currentStep: 1,
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    stepTimestamps: {},
+    reloadCount: 0,
+    consent: { age18: false, consent: false, timestamp: null },
+    video: { started: false, ended: false, watchOk: false, duration: null, playedSec: 0,
+             pauseCount: 0, hiddenCount: 0, hiddenMs: 0, enteredAt: null, leftAt: null, loadErrors: 0 },
+    attention: { response: null, answeredAt: null },
+    thht: { selectedIds: [], selectionOrder: [], deselectCount: 0, startTime: null, endTime: null, locked: false },
+    scales: {},
+    choices: {},
+    demographics: { age: null, gender: '' },
+    withdrawn: false, withdrawnAt: null, withdrawnAtStep: null,
+    debrief: { dataDecision: null, decidedAt: null },
+    submission: { status: 'not_submitted', attempts: 0, lastError: null, submittedAt: null }
+  };
+}
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) { const s = JSON.parse(raw); if (s && s.participantId && s.condition) { s.reloadCount = (s.reloadCount || 0) + 1; return s; } }
+  } catch (e) { /* storage unavailable: fall back to an in-memory session */ }
+  return newState();
+}
+const state = loadState();
+function saveState() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
+}
+const VIDEO = STUDY_CONFIG.videos[state.condition];
 
 /* =====================================================================
    3.4  PAGE SWITCHING
-   goToStep(n) hides all step panels, shows panel n, updates the
-   "Step X of 11" indicator and progress bar, and records a timestamp.
-   Steps are only reachable through each step's gated button.
    ===================================================================== */
 const $ = (id) => document.getElementById(id);
 const steps = Array.from(document.querySelectorAll('section.step'));
 
 function goToStep(n) {
-  if (n < 1 || n > TOTAL_STEPS) return;
-  state.currentStep = n;
-  state.stepTimestamps[n] = new Date().toISOString();
+  const isNum = typeof n === 'number';
+  if (isNum && (n < 1 || n > TOTAL_STEPS)) return;
+  if (isNum) {
+    if (state.currentStep === 2 && n !== 2) state.video.leftAt = state.video.leftAt || new Date().toISOString();
+    state.currentStep = n;
+    if (!state.stepTimestamps[n]) state.stepTimestamps[n] = new Date().toISOString();
+  }
   steps.forEach(sec => {
-    const isActive = Number(sec.dataset.step) === n;
+    const isActive = sec.dataset.step === String(n);
     sec.hidden = !isActive;
     sec.classList.toggle('is-entering', isActive);
   });
-  $('stepIndicator').innerHTML = bi('Step ' + n + ' of ' + TOTAL_STEPS, '第 ' + n + ' 步，共 ' + TOTAL_STEPS + ' 步');
-  $('progressFill').style.width = (n / TOTAL_STEPS * 100) + '%';
-  $('progressBar').setAttribute('aria-valuenow', String(n));
+  if (isNum) {
+    $('stepIndicator').innerHTML = bi('Step ' + n + ' of ' + TOTAL_STEPS, '第 ' + n + ' 步，共 ' + TOTAL_STEPS + ' 步');
+    $('progressFill').style.width = (n / TOTAL_STEPS * 100) + '%';
+    $('progressBar').setAttribute('aria-valuenow', String(n));
+    if (n === 2 && !state.video.enteredAt) state.video.enteredAt = new Date().toISOString();
+  }
+  saveState();
   window.scrollTo(0, 0);
-  const heading = $('h-step' + n);
+  const heading = $(isNum ? 'h-step' + n : 'h-' + n);
   if (heading) heading.focus({ preventScroll: true });
 }
 
@@ -1110,118 +1118,181 @@ function setGate(buttonId, hintId, ok, readyText, pendingText) {
 }
 
 /* =====================================================================
-   3.5  FORM VALIDATION FUNCTIONS
-   One function per step. Each returns true/false and is re-run on every
-   input change to enable/disable that step's Next button. Navigation
-   handlers call the validator again before moving on.
+   3.5  FORM VALIDATION FUNCTIONS (one per step)
    ===================================================================== */
 const answered = (key) => Number.isInteger(state.scales[key]);
+const ALL_DONE = ['All questions answered.', '所有问题均已作答。'];
 
-function validateConsent() {            // Step 2: both checkboxes ticked
+function configBlocked() { return MISSING.length > 0 && !PREVIEW; }
+
+function validateConsent() {            // Step 1: both boxes + config complete
   state.consent.age18 = $('chkAge').checked;
   state.consent.consent = $('chkConsent').checked;
-  const ok = state.consent.age18 && state.consent.consent;
-  setGate('btnNext2', 'hint2', ok, ['Thank you. You can now continue.', '谢谢。您现在可以继续。'], ['Please confirm both statements to continue.', '请确认以上两项声明后继续。']);
+  const ok = state.consent.age18 && state.consent.consent && !configBlocked();
+  setGate('btnNext1', 'hint1', ok, ['Thank you. You can now continue.', '谢谢。您现在可以继续。'],
+          configBlocked() ? ['This study is not open yet.', '本研究尚未开放。'] : ['Please confirm both statements to continue.', '请确认以上两项声明后继续。']);
+  saveState();
   return ok;
 }
 
-function validateVideo() {              // Step 3: video watched to the end
-  const ok = state.video.watched === true;
-  setGate('btnNext3', 'hint3', ok, ['The video has finished. You can now continue.', '视频已播放完毕。您现在可以继续。'], ['The Next button becomes available when the video has finished.', '视频播放结束后，“下一步”按钮才可点击。']);
+function validateVideo() {              // Step 2: ended + minimum played time
+  const ok = state.video.watchOk === true;
+  setGate('btnNext2', 'hint2', ok, ['The video has finished. You can now continue.', '视频已播放完毕。您现在可以继续。'],
+          ['The Next button becomes available when the video has finished.', '视频播放结束后，“下一步”按钮才可点击。']);
   return ok;
 }
 
-function validateAttention() {          // Step 4: both items answered
-  state.attention.instructedAnswer = answered('attn_instructed') ? state.scales.attn_instructed : null;
-  const ok = state.attention.objectAnswer !== null && state.attention.instructedAnswer !== null;
-  setGate('btnNext4', 'hint4', ok, ['All questions answered.', '所有问题均已作答。'], ['Please answer both questions to continue.', '请回答以上两个问题后继续。']);
+function validateAttention() {          // Step 3: one neutral item
+  const ok = state.attention.response !== null;
+  setGate('btnNext3', 'hint3', ok, ALL_DONE, ['Please answer the question to continue.', '请回答以上问题后继续。']);
+  saveState();
   return ok;
 }
 
-function validateMotivation() {         // Step 7: all 5-point items answered
-  const ok = STUDY_CONFIG.motivationItems.every(it => answered(it.id));
-  setGate('btnNext7', 'hint7', ok, ['All items answered.', '所有题目均已作答。'], ['Please answer all items to continue.', '请回答所有题目后继续。']);
+function validateSHS() {                // Step 6: all 8 items
+  const ok = STUDY_CONFIG.shsItems.every(it => answered(it.id));
+  setGate('btnNext6', 'hint6', ok, ['All items answered.', '所有题目均已作答。'], ['Please answer all items to continue.', '请回答所有题目后继续。']);
+  saveState();
   return ok;
 }
 
-function validateManipulation() {       // Step 8: all 1-7 items + seen-before answered
-  const ok = STUDY_CONFIG.manipulationItems.every(it => answered(it.id)) && !!state.choices.seenBefore;
-  setGate('btnNext8', 'hint8', ok, ['All items answered.', '所有题目均已作答。'], ['Please answer all items to continue.', '请回答所有题目后继续。']);
+function validateViolence() {           // Step 7
+  const ok = answered('perceived_violence');
+  setGate('btnNext7', 'hint7', ok, ALL_DONE, ['Please answer the question to continue.', '请回答以上问题后继续。']);
+  saveState();
   return ok;
 }
 
-function validateSuspicion() {          // Step 9: belief rating + non-empty text
-  state.text.studyPurpose = $('studyPurpose').value;
-  const ok = answered('susp_belief') && state.text.studyPurpose.trim().length > 0;
-  setGate('btnNext9', 'hint9', ok, ['All questions answered.', '所有问题均已作答。'], ['Please answer both questions to continue.', '请回答以上两个问题后继续。']);
+function validateBelief() {             // Step 8
+  const ok = !!state.choices.believedOtherParticipant;
+  setGate('btnNext8', 'hint8', ok, ALL_DONE, ['Please answer the question to continue.', '请回答以上问题后继续。']);
+  saveState();
   return ok;
 }
 
-function validateDemographics() {       // Step 10: all fields; age 18-99 integer
+function validateDemographics() {       // Step 9: four items
   const raw = $('age').value.trim();
-  const ageNum = Number(raw);
-  const ageOk = raw !== '' && Number.isInteger(ageNum) && ageNum >= 18 && ageNum <= 99;
+  const age = Number(raw);
+  const ageOk = raw !== '' && Number.isInteger(age) && age >= 18 && age <= 99;
   $('ageError').hidden = raw === '' || ageOk;
-  state.demographics.age = ageOk ? ageNum : null;
+  state.demographics.age = ageOk ? age : null;
   state.demographics.gender = $('gender').value;
-  state.demographics.education = $('education').value;
-  const ok = ageOk && !!state.demographics.gender && !!state.demographics.education &&
-             !!state.choices.dailyShortVideoTime && answered('media_ai_freq') &&
-             answered('media_violent_freq') && !!state.choices.seenFruitQueenType;
-  setGate('btnNext10', 'hint10', ok, ['All questions answered.', '所有问题均已作答。'], ['Please answer all questions to continue.', '请回答所有问题后继续。']);
+  const ok = ageOk && !!state.demographics.gender && !!state.choices.dailyShortVideoTime && answered('ai_content_freq');
+  setGate('btnNext9', 'hint9', ok, ALL_DONE, ['Please answer all questions to continue.', '请回答所有问题后继续。']);
+  saveState();
   return ok;
 }
 
 /* =====================================================================
    3.6  VIDEO LOGIC
-   Real mode     : VIDEO_CONFIG.src set -> native <video>; seeking ahead
-                   is blocked and the "ended" event marks completion.
-   Simulated mode: placeholder screen + Play/Pause; a timer advances the
-                   progress bar and calls onVideoEnded() at the end.
-                   Playback pauses automatically when the tab is hidden.
+   Real video (formal mode): native <video>, NO autoplay, forward seeking
+   blocked, played time accumulated from timeupdate deltas while playing,
+   pauses when the page is hidden, load error -> bilingual Retry.
+   Simulated placeholder: preview mode only.
+   Logged: duration, played time, dwell, ended, pause count, hidden
+   count + duration, watch_ok.
    ===================================================================== */
 const fmt = (s) => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 
-function onVideoEnded() {
-  if (state.video.watched) return;
-  state.video.watched = true;                     // store watched state
-  state.video.watchedAt = new Date().toISOString();
-  const st = $('videoStatus');
-  st.innerHTML = bi('Video completed', '视频已播放完毕');
-  st.classList.add('done');
+function checkWatchOk() {
+  const v = state.video;
+  v.watchOk = !!(v.ended && v.duration && v.playedSec >= STUDY_CONFIG.minWatchFraction * v.duration);
+  saveState();
   validateVideo();
+}
+
+function onVideoEnded() {
+  state.video.ended = true;
+  const st = $('videoStatus');
+  checkWatchOk();
+  if (state.video.watchOk) {
+    st.innerHTML = bi('Video completed', '视频已播放完毕');
+    st.classList.add('done');
+  } else {
+    st.innerHTML = bi('Please watch the whole video from the beginning to continue.', '请从头完整观看视频后继续。');
+  }
 }
 
 function updatePlayerUI(current, duration) {
   $('playerBarFill').style.width = (duration ? Math.min(100, current / duration * 100) : 0) + '%';
-  $('playerTime').textContent = fmt(current) + ' / ' + fmt(duration);
+  $('playerTime').textContent = fmt(current) + ' / ' + fmt(duration || 0);
 }
+
+/* Hidden-page tracking (counts + total hidden duration while on step 2). */
+let hiddenSince = null;
+let pauseActiveVideo = null;           // set by initVideo(): pauses whatever player is active
+document.addEventListener('visibilitychange', () => {
+  if (state.currentStep !== 2 || state.video.watchOk) return;
+  if (document.hidden) {
+    state.video.hiddenCount++; hiddenSince = Date.now();
+    if (pauseActiveVideo) pauseActiveVideo();
+  } else if (hiddenSince) {
+    state.video.hiddenMs += Date.now() - hiddenSince; hiddenSince = null;
+  }
+  saveState();
+});
 
 function initVideo() {
   const frame = $('playerFrame');
+  if (state.video.watchOk) {                       // resumed after refresh: already done
+    frame.innerHTML = '<div class="placeholder-screen"><strong>' + bi('Video completed', '视频已播放完毕') + '</strong></div>';
+    updatePlayerUI(state.video.duration || 0, state.video.duration || 0);
+    onVideoEnded();
+    return;
+  }
+  /* A refresh mid-video restarts playback from 0; played time is re-counted. */
+  state.video.playedSec = 0; state.video.ended = false;
 
-  if (VIDEO_CONFIG.src) {
+  if (VIDEO && VIDEO.src) {
     /* ---- Real video ---- */
     const v = document.createElement('video');
-    v.src = VIDEO_CONFIG.src;
+    v.src = VIDEO.src;
     v.controls = true;
+    v.autoplay = false;
     v.playsInline = true;
     v.preload = 'auto';
-    let maxTime = 0;
+    v.setAttribute('controlsList', 'nodownload noplaybackrate');
+    v.disablePictureInPicture = true;
+    let maxTime = 0, lastT = 0;
+    v.addEventListener('loadedmetadata', () => { state.video.duration = v.duration; updatePlayerUI(0, v.duration); saveState(); });
     v.addEventListener('timeupdate', () => {
+      if (!v.seeking && !v.paused) {
+        const d = v.currentTime - lastT;
+        if (d > 0 && d < 1.5) state.video.playedSec += d;
+      }
+      lastT = v.currentTime;
       if (!v.seeking) maxTime = Math.max(maxTime, v.currentTime);
       updatePlayerUI(v.currentTime, v.duration || 0);
     });
-    v.addEventListener('seeking', () => { if (v.currentTime > maxTime + 0.5) v.currentTime = maxTime; });
+    v.addEventListener('seeking', () => { if (v.currentTime > maxTime + 0.5) v.currentTime = maxTime; lastT = v.currentTime; });
+    v.addEventListener('ratechange', () => { if (v.playbackRate !== 1) v.playbackRate = 1; });
     v.addEventListener('play', () => { state.video.started = true; $('videoStatus').innerHTML = bi('Playing', '正在播放'); });
-    v.addEventListener('pause', () => { if (!v.ended) $('videoStatus').innerHTML = bi('Paused', '已暂停'); });
+    v.addEventListener('pause', () => {
+      if (!v.ended) { state.video.pauseCount++; $('videoStatus').innerHTML = bi('Paused', '已暂停'); saveState(); }
+    });
     v.addEventListener('ended', onVideoEnded);
+    v.addEventListener('error', () => {
+      state.video.loadErrors++; saveState();
+      $('videoError').hidden = false;
+      $('videoStatus').innerHTML = bi('Video unavailable', '视频无法播放');
+    });
+    $('btnVideoRetry').addEventListener('click', () => {
+      $('videoError').hidden = true; maxTime = 0; lastT = 0; state.video.playedSec = 0;
+      v.load();
+    });
+    pauseActiveVideo = () => { if (!v.paused) v.pause(); };
     frame.appendChild(v);
     return;
   }
 
-  /* ---- Simulated placeholder video ---- */
-  const duration = VIDEO_CONFIG.simulatedDurationSec;
+  /* ---- Simulated placeholder video (preview mode only) ---- */
+  if (!PREVIEW) {                                  // formal mode without a src: config error
+    $('videoError').hidden = false;
+    $('btnVideoRetry').addEventListener('click', () => location.reload());
+    return;
+  }
+  const duration = STUDY_CONFIG.simulatedDurationSec;
+  state.video.duration = duration;
   const iconPlay = '<svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
   const iconPause = '<svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg>';
   frame.innerHTML =
@@ -1236,39 +1307,41 @@ function initVideo() {
   const btn = $('btnPlay');
   let elapsed = 0, playing = false, lastTick = 0, timer = null;
 
-  function stop() {
+  function stop(countPause) {
+    if (playing && countPause) state.video.pauseCount++;
     playing = false; clearInterval(timer); timer = null;
     btn.innerHTML = iconPlay; btn.setAttribute('aria-label', 'Play video');
+    saveState();
   }
   function tick() {
     const now = performance.now();
-    elapsed += (now - lastTick) / 1000;
+    const d = (now - lastTick) / 1000;
+    elapsed += d; state.video.playedSec += d;
     lastTick = now;
     if (elapsed >= duration) {
+      state.video.playedSec -= (elapsed - duration);
       elapsed = duration;
-      stop();
+      stop(false);
       updatePlayerUI(elapsed, duration);
       btn.hidden = true;
       $('placeholderTitle').innerHTML = bi('End of video', '视频结束');
       $('placeholderSub').innerHTML = bi('Thank you for watching.', '感谢观看。');
-      onVideoEnded();                               // simulated "ended" event
+      onVideoEnded();
       return;
     }
     updatePlayerUI(elapsed, duration);
   }
   function play() {
-    if (state.video.watched) return;
+    if (state.video.ended) return;
     playing = true; state.video.started = true; lastTick = performance.now();
     timer = setInterval(tick, 200);
     btn.innerHTML = iconPause; btn.setAttribute('aria-label', 'Pause video');
     $('videoStatus').innerHTML = bi('Playing', '正在播放');
   }
   btn.addEventListener('click', () => {
-    if (playing) { stop(); $('videoStatus').innerHTML = bi('Paused', '已暂停'); } else { play(); }
+    if (playing) { stop(true); $('videoStatus').innerHTML = bi('Paused', '已暂停'); } else { play(); }
   });
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden && playing) { stop(); $('videoStatus').innerHTML = bi('Paused', '已暂停'); }
-  });
+  pauseActiveVideo = () => { if (playing) { stop(true); $('videoStatus').innerHTML = bi('Paused', '已暂停'); } };
 }
 
 /* =====================================================================
@@ -1325,15 +1398,20 @@ function renderPuzzleGrid() {
 }
 
 function toggleSelection(id) {
+  if (state.thht.locked) return;                  // locked after confirmed submit
   const sel = state.thht.selectedIds;
   const idx = sel.indexOf(id);
   if (idx >= 0) {
     sel.splice(idx, 1);                             // deselect
+    state.thht.deselectCount++;
+    state.thht.selectionOrder.push('-' + id);
   } else {
     if (sel.length >= REQUIRED_SELECTIONS) return;  // cap: never more than 11
     sel.push(id);                                   // select
+    state.thht.selectionOrder.push(id);
   }
   updateTHHTUI();
+  saveState();
 }
 
 function updateTHHTUI() {
@@ -1342,7 +1420,7 @@ function updateTHHTUI() {
   document.querySelectorAll('.puzzle-card').forEach(card => {
     const selected = state.thht.selectedIds.includes(card.dataset.id);
     card.setAttribute('aria-pressed', String(selected));
-    card.disabled = full && !selected;
+    card.disabled = state.thht.locked || (full && !selected);
   });
   const counter = $('selCounter');
   counter.innerHTML = bi('Selected: ' + n + ' / ' + REQUIRED_SELECTIONS, '已选：' + n + ' / ' + REQUIRED_SELECTIONS);
@@ -1353,10 +1431,10 @@ function updateTHHTUI() {
   validateTHHT();
 }
 
-function validateTHHT() {               // Step 6: exactly 11 selected
+function validateTHHT() {               // Step 5: exactly 11 selected
   const n = state.thht.selectedIds.length;
   const ok = n === REQUIRED_SELECTIONS;
-  setGate('btnSubmitTHHT', 'hint6', ok,
+  setGate('btnSubmitTHHT', 'hint5', ok && !state.thht.locked,
           ['You have selected 11 puzzles. You can now submit.', '您已选择11道题。现在可以提交。'],
           ['Select exactly 11 puzzles to enable Submit (' + (REQUIRED_SELECTIONS - n) + ' remaining).',
            '恰好选择11道题后即可提交（还需选择 ' + (REQUIRED_SELECTIONS - n) + ' 道）。']);
@@ -1401,22 +1479,17 @@ function modalKeydown(e) {
   else if (!e.shiftKey && document.activeElement === lastEl) { e.preventDefault(); firstEl.focus(); }
 }
 
+
 function submitTHHT() {
-  if (!validateTHHT()) return;
-  /* In-page confirmation modal (see openConfirmModal); Submit proceeds. */
+  if (state.thht.locked || !validateTHHT()) return;
   openConfirmModal(() => {
-    state.thht.endTime = Date.now();             // THHT completion time
-    goToStep(7);
+    state.thht.endTime = Date.now();
+    state.thht.locked = true;                      // choices can no longer change
+    goToStep(6);
   });
 }
 
-/* Difficulty counts of the selected set (the counts themselves are not shown).
-   These data are later used to compute the THHT scores:
-     - Helping Score    = number of EASY puzzles selected   (0-10)
-     - Hurting Score    = number of HARD puzzles selected   (0-10)
-     - Difference Score = Hurting Score - Helping Score     (-10 to +10);
-                          higher values = more hurting relative to helping.
-   Selected IDs and task duration are stored alongside for analysis. */
+/* Difficulty counts of the selected set (never shown to participants). */
 function countDifficulties(ids) {
   const counts = { easy: 0, medium: 0, hard: 0 };
   ids.forEach(id => {
@@ -1427,144 +1500,288 @@ function countDifficulties(ids) {
 }
 
 /* =====================================================================
-   3.8  FINAL RESULTS SUMMARY OBJECT
-   buildResults() assembles everything in `state` into one analysis-ready
-   object. submitResults() is the hook for a real backend.
+   3.8  RECORD, UPLOAD, WITHDRAWAL
+   buildResults() returns ONE flat analysis-ready record. Unanswered or
+   unavailable values are null (never 0).
+   THHT scoring:  thht_hurt = max(0, hard - 1)
+                  thht_help = max(0, easy - 1)
+                  thht_difference = thht_help - thht_hurt
+   SHS scoring:   items 2, 4, 6, 8 reversed (6 - x); shs_mean = mean of
+                  the 8 scored items (null unless all 8 answered).
    ===================================================================== */
-function buildResults() {
-  const counts = countDifficulties(state.thht.selectedIds);
-  const durationMs = (state.thht.startTime && state.thht.endTime) ? state.thht.endTime - state.thht.startTime : null;
-  const motivation = {}, manipulation = {};
-  STUDY_CONFIG.motivationItems.forEach(it => { motivation[it.id] = answered(it.id) ? state.scales[it.id] : null; });
-  STUDY_CONFIG.manipulationItems.forEach(it => { manipulation[it.id] = answered(it.id) ? state.scales[it.id] : null; });
-  manipulation.seenBefore = state.choices.seenBefore || null;
+const val = (k) => answered(k) ? state.scales[k] : null;
 
-  return {
-    participantId: state.participantId,
-    startedAt: state.startedAt,
-    completedAt: new Date().toISOString(),
-    stepTimestamps: state.stepTimestamps,
-    consent: Object.assign({}, state.consent),
-    video: Object.assign({}, state.video),
-    attentionCheck: {
-      objectAnswer: state.attention.objectAnswer,
-      objectCorrect: state.attention.objectAnswer === STUDY_CONFIG.attentionCheck.correctOptionId,
-      instructedAnswer: state.attention.instructedAnswer,           // 1-5
-      instructedPassed: state.attention.instructedAnswer === STUDY_CONFIG.instructedTarget
-    },
-    thht: {
-      selectedIds: state.thht.selectedIds.slice().sort(),
-      nSelected: state.thht.selectedIds.length,
-      easyCount: counts.easy,
-      mediumCount: counts.medium,
-      hardCount: counts.hard,
-      durationMs: durationMs,
-      durationSec: durationMs === null ? null : Math.round(durationMs / 100) / 10,
-      // Derived scores (see countDifficulties()):
-      helpingScore: counts.easy,                    // Helping Score
-      hurtingScore: counts.hard,                    // Hurting Score
-      differenceScore: counts.hard - counts.easy    // Difference Score
-    },
-    motivationCheck: motivation,                    // 1-5
-    manipulationCheck: manipulation,                // 1-7 (+ seenBefore)
-    suspicionCheck: {
-      beliefOtherParticipant: answered('susp_belief') ? state.scales.susp_belief : null,   // 1-7
-      perceivedStudyPurpose: state.text.studyPurpose.trim()
-    },
-    demographics: {
-      age: state.demographics.age,
-      gender: state.demographics.gender,
-      education: state.demographics.education,
-      dailyShortVideoTime: state.choices.dailyShortVideoTime || null,
-      aiVideoFrequency: answered('media_ai_freq') ? state.scales.media_ai_freq : null,             // 1 Never - 5 Very often
-      violentVideoFrequency: answered('media_violent_freq') ? state.scales.media_violent_freq : null, // 1 Never - 5 Very often
-      seenFruitQueenType: state.choices.seenFruitQueenType || null
-    },
-    debrief: {
-      dataDecision: state.debrief.dataDecision,
-      decidedAt: state.debrief.decidedAt,
-      retainData: state.debrief.dataDecision === 'keep'
-    }
+function buildResults(includeResponses) {
+  const v = state.video;
+  const base = {
+    participant_id: state.participantId,
+    study_id: STUDY_CONFIG.study_id,
+    protocol_version: STUDY_CONFIG.protocol_version,
+    shs_version: STUDY_CONFIG.shs_version,
+    preview_mode: PREVIEW,
+    condition: state.condition,
+    character_type: VIDEO ? VIDEO.character_type : null,
+    violence_condition: VIDEO ? VIDEO.violence_condition : null,
+    video_id: VIDEO ? VIDEO.video_id : null,
+    consent: state.consent.consent,
+    age_eligible: state.consent.age18,
+    consent_time: state.consent.timestamp,
+    start_time: state.startedAt,
+    finish_time: state.finishedAt,
+    reload_count: state.reloadCount,
+    withdrawn: state.withdrawn,
+    withdrawn_at: state.withdrawnAt,
+    withdrawn_at_step: state.withdrawnAtStep,
+    data_decision: state.debrief.dataDecision,
+    completion_status: state.withdrawn ? (state.debrief.dataDecision === 'withdraw' ? 'withdrawn_after_debrief' : 'withdrawn_during_study')
+                                       : (state.debrief.dataDecision === 'keep' ? 'complete' : 'in_progress'),
+    submission_status: state.submission.status
   };
+  if (!includeResponses) return base;            // withdrawal: no response data
+
+  const ids = state.thht.selectedIds.slice();
+  const c = countDifficulties(ids);
+  const hasSel = ids.length === REQUIRED_SELECTIONS;
+  const hurt = hasSel ? Math.max(0, c.hard - 1) : null;
+  const help = hasSel ? Math.max(0, c.easy - 1) : null;
+  const correct = VIDEO ? VIDEO.attentionCorrectOptionId : null;
+  const shs = {};
+  let scored = [];
+  STUDY_CONFIG.shsItems.forEach(it => {
+    const x = val(it.id);
+    shs[it.id] = x;
+    if (x !== null) scored.push(it.reverse ? 6 - x : x);
+  });
+  const dwell = v.enteredAt ? ((v.leftAt ? Date.parse(v.leftAt) : Date.now()) - Date.parse(v.enteredAt)) / 1000 : null;
+  return Object.assign(base, {
+    video_duration_sec: v.duration !== null ? Math.round(v.duration * 100) / 100 : null,
+    video_played_sec: v.started ? Math.round(v.playedSec * 100) / 100 : null,
+    video_dwell_sec: dwell !== null ? Math.round(dwell * 10) / 10 : null,
+    video_ended: v.ended,
+    video_pause_count: v.pauseCount,
+    video_hidden_count: v.hiddenCount,
+    video_hidden_sec: Math.round(v.hiddenMs / 100) / 10,
+    video_load_errors: v.loadErrors,
+    watch_ok: v.watchOk,
+    attention_response: state.attention.firstResponse !== undefined ? state.attention.firstResponse : null,
+    attention_final_response: state.attention.response,
+    attention_pass: (state.attention.firstResponse && correct) ? state.attention.firstResponse === correct : null,
+    selected_puzzle_ids: ids,
+    selection_order: state.thht.selectionOrder.slice(),
+    thht_deselect_count: state.thht.deselectCount,
+    thht_easy_count: hasSel ? c.easy : null,
+    thht_medium_count: hasSel ? c.medium : null,
+    thht_hard_count: hasSel ? c.hard : null,
+    thht_counts_sum_ok: hasSel ? (c.easy + c.medium + c.hard === REQUIRED_SELECTIONS) : null,
+    thht_hurt: hurt,
+    thht_help: help,
+    thht_difference: hasSel ? help - hurt : null,
+    thht_duration_sec: (state.thht.startTime && state.thht.endTime) ? Math.round((state.thht.endTime - state.thht.startTime) / 100) / 10 : null,
+  }, shs, {
+    shs_mean: scored.length === STUDY_CONFIG.shsItems.length ? Math.round(scored.reduce((a, b) => a + b, 0) / scored.length * 1000) / 1000 : null,
+    perceived_violence: val('perceived_violence'),
+    believed_other_participant: state.choices.believedOtherParticipant || null,
+    age: state.demographics.age,
+    gender: state.demographics.gender || null,
+    daily_short_video_time: state.choices.dailyShortVideoTime || null,
+    ai_content_freq: val('ai_content_freq'),
+    step_timestamps: state.stepTimestamps,
+    shs_metadata: STUDY_CONFIG.shsMetadata
+  });
 }
 
-/* Hook for a real research system: replace with fetch('/api/submit', ...)
-   or your survey platform's save call. If dataDecision is 'withdraw',
-   the server must delete or never store this record. */
-function submitResults(results) {
-  window.THHT_RESULTS = results;                 // accessible from the console in demos
-  return results;
+let submitting = false;
+/* Sends the record once. Success is shown ONLY after a 2xx response from
+   STUDY_CONFIG.submitEndpoint. Without an endpoint the record is kept in
+   this browser only and the participant is told it was NOT uploaded. */
+async function submitResults(record) {
+  if (submitting || state.submission.status === 'uploaded' || state.submission.status === 'local_only') return state.submission.status;
+  submitting = true;
+  state.submission.attempts++;
+  window.THHT_RESULTS = record;
+  if (!STUDY_CONFIG.submitEndpoint || PREVIEW) {
+    state.submission.status = 'local_only';
+    record.submission_status = 'local_only';
+    state.lastRecord = record; saveState();
+    submitting = false;
+    return 'local_only';
+  }
+  state.submission.status = 'uploading'; saveState();
+  record.submission_status = 'uploaded';
+  try {
+    const res = await fetch(STUDY_CONFIG.submitEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(record)
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    state.submission.status = 'uploaded';
+    state.submission.submittedAt = new Date().toISOString();
+  } catch (err) {
+    state.submission.status = 'failed';
+    state.submission.lastError = String(err && err.message || err);
+  }
+  state.lastRecord = record; saveState();
+  submitting = false;
+  return state.submission.status;
 }
 
-function recordDataDecision(decision) {
-  state.debrief.dataDecision = decision;         // 'keep' | 'withdraw'
+function showSubmissionStatus(kind) {           // kind: 'keep' | 'withdraw' | 'header'
+  const s = state.submission.status;
+  const notice = kind === 'header' ? $('withdrawSupport') : $('decisionNotice');
+  $('uploadError').hidden = !(s === 'failed' && kind !== 'header');
+  notice.classList.toggle('is-warn', s !== 'uploaded');
+  if (s === 'uploading') {
+    notice.innerHTML = bi('Saving your choice… please keep this page open.', '正在保存您的选择……请不要关闭本页面。');
+  } else if (s === 'uploaded') {
+    notice.innerHTML = kind === 'keep'
+      ? bi('Thank you. Your responses have been uploaded and will be kept in the study. You may now close this page.', '谢谢。您的回答已成功上传并将保留在研究中。您现在可以关闭本页面。')
+      : bi('Thank you. Your withdrawal has been recorded and your responses will not be used. You may now close this page.', '谢谢。您的退出已记录，您的回答将不会被使用。您现在可以关闭本页面。');
+  } else if (s === 'local_only') {
+    notice.innerHTML = bi('Your choice was saved in this browser only. It was NOT uploaded to the researchers, because no data server is connected to this page yet.',
+                          '您的选择仅保存在本浏览器中，尚未上传给研究者，因为本页面尚未连接数据服务器。');
+  } else if (s === 'failed') {
+    notice.innerHTML = bi('Not uploaded yet.', '尚未上传。');
+  }
+  notice.hidden = false;
+  if (PREVIEW && kind !== 'header' && state.lastRecord) {
+    $('resultsJson').textContent = JSON.stringify(state.lastRecord, null, 2);
+    $('resultsPanel').hidden = false;
+  }
+}
+
+async function recordDataDecision(decision) {
+  if (state.debrief.dataDecision) return;          // double-click guard
+  state.debrief.dataDecision = decision;
   state.debrief.decidedAt = new Date().toISOString();
+  state.finishedAt = state.finishedAt || new Date().toISOString();
+  if (decision === 'withdraw') { state.withdrawn = true; state.withdrawnAt = state.debrief.decidedAt; state.withdrawnAtStep = 10; }
+  lockDecisionButtons();
+  $('btnWithdrawLink').hidden = true;
+  saveState();
+  await sendCurrent();
+}
+async function sendCurrent() {
+  showSubmissionStatus(state.debrief.dataDecision);
+  if (state.submission.status === 'not_submitted' || state.submission.status === 'failed' || !state.submission.status) {
+    const p = submitResults(buildResults(state.debrief.dataDecision === 'keep'));
+    showSubmissionStatus(state.debrief.dataDecision);
+    await p;
+  }
+  showSubmissionStatus(state.debrief.dataDecision);
+}
+function lockDecisionButtons() {
   $('btnKeepData').disabled = true;
   $('btnWithdrawData').disabled = true;
-  $(decision === 'keep' ? 'btnKeepData' : 'btnWithdrawData').classList.add('is-chosen');
-  const notice = $('decisionNotice');
-  notice.innerHTML = decision === 'keep'
-    ? bi('Thank you. Your choice has been recorded and your data will be kept in the study. You may now close this page.',
-         '谢谢。您的选择已记录，您的数据将保留在研究中。您现在可以关闭本页面。')
-    : bi('Thank you. Your choice has been recorded and your data will be withdrawn from the study. You may now close this page.',
-         '谢谢。您的选择已记录，您的数据将从研究中撤回。您现在可以关闭本页面。');
-  notice.hidden = false;
-  const results = submitResults(buildResults());
-  $('resultsJson').textContent = JSON.stringify(results, null, 2);
-  $('resultsPanel').hidden = false;
+  const d = state.debrief.dataDecision;
+  if (d) $(d === 'keep' ? 'btnKeepData' : 'btnWithdrawData').classList.add('is-chosen');
 }
 
-/* Download the JSON shown in the results panel. Sandboxed frames may
-   block downloads (silently or with an error); the JSON stays visible in
-   the panel either way, and a note tells the user to copy it instead. */
-function downloadResults() {
+/* Neutral withdrawal from any step (header link). Not a failure; the
+   record carries withdrawn = true and no response data. */
+let returnStep = null;
+function openWithdraw() {
+  if (pauseActiveVideo) pauseActiveVideo();
+  returnStep = state.currentStep;
+  goToStep('withdraw');
+}
+async function confirmWithdraw() {
+  if (state.withdrawn) return;
+  state.withdrawn = true;
+  state.withdrawnAt = new Date().toISOString();
+  state.withdrawnAtStep = state.currentStep;
+  saveState();
+  showWithdrawDone();
+  await submitResults(buildResults(false));
+  showWithdrawDone();
+}
+function showWithdrawDone() {
+  $('withdrawConfirmBox').hidden = true;
+  $('withdrawDoneBox').hidden = false;
+  $('btnWithdrawLink').hidden = true;
+  $('progressBar').hidden = true;
+  showSubmissionStatus('header');
+  if (state.submission.status === 'uploaded') {
+    $('withdrawSupport').innerHTML = bi('Your withdrawal has been recorded.', '您的退出已记录。');
+  } else if (state.submission.status === 'failed') {
+    $('withdrawSupport').innerHTML = bi('Your withdrawal could not be sent to the researchers, but none of your responses were uploaded.', '您的退出信息未能发送给研究者，但您的任何回答都没有被上传。');
+  }
+}
+
+/* Researcher test export (preview only). */
+function download(name, text, type) {
   try {
-    const blob = new Blob([$('resultsJson').textContent], { type: 'application/json' });
+    const blob = new Blob([text], { type: type });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'THHT_session_' + state.participantId + '.json';
+    a.download = name;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => { try { URL.revokeObjectURL(a.href); } catch (e) { /* ignore */ } }, 1000);
-  } catch (err) {
-    console.info('JSON download unavailable in this context:', err && err.message);
-  }
-  $('downloadNote').hidden = false;
+  } catch (err) { console.info('Download unavailable in this context:', err && err.message); }
+}
+function recordToCSV(r) {
+  const keys = Object.keys(r).filter(k => k !== 'shs_metadata' && k !== 'step_timestamps');
+  const cell = (x) => { const s = x === null || x === undefined ? '' : Array.isArray(x) ? x.join(';') : String(x); return '"' + s.replace(/"/g, '""') + '"'; };
+  return keys.join(',') + '\n' + keys.map(k => cell(r[k])).join(',') + '\n';
 }
 
 /* =====================================================================
-   3.9  INITIALISATION AND EVENT WIRING
+   3.9  INITIALISATION, RESTORE AFTER REFRESH, EVENT WIRING
    ===================================================================== */
-function init() {
-  // Step 1: welcome
-  $('btnBegin').addEventListener('click', () => goToStep(2));
+function checkRadio(name, value) {
+  if (value === null || value === undefined) return;
+  const el = document.querySelector('input[name="' + name + '"][value="' + value + '"]');
+  if (el) el.checked = true;
+}
 
-  // Step 2: consent gate
+function init() {
+  if (PREVIEW) $('previewBanner').hidden = false;
+
+  // Step 1: consent (+ required-config check)
+  if (MISSING.length) {
+    const box = $('configError');
+    box.innerHTML = '<p>' + bi('This study is not open yet. Please try again later.', '本研究尚未开放，请稍后再试。') + '</p>' +
+      '<p class="small">' + bi('Missing study settings: ', '缺少的研究设置：') + '</p><ul class="small"><li>' + MISSING.join('</li><li>') + '</li></ul>' +
+      (PREVIEW ? '<p class="small">' + bi('Preview mode: you may continue for testing only.', '预览模式：仅供测试，可继续。') + '</p>' : '');
+    box.hidden = false;
+  }
+  $('chkAge').checked = state.consent.age18;
+  $('chkConsent').checked = state.consent.consent;
   $('chkAge').addEventListener('change', validateConsent);
   $('chkConsent').addEventListener('change', validateConsent);
-  $('btnNext2').addEventListener('click', () => {
+  $('btnNext1').addEventListener('click', () => {
     if (!validateConsent()) return;
     state.consent.timestamp = new Date().toISOString();
-    goToStep(3);
+    goToStep(2);
   });
+  validateConsent();
 
-  // Step 3: video gate
+  // Step 2: video
   initVideo();
-  $('btnNext3').addEventListener('click', () => { if (validateVideo()) goToStep(4); });
+  validateVideo();
+  $('btnNext2').addEventListener('click', () => { if (validateVideo()) goToStep(3); });
 
-  // Step 4: attention check
-  renderOptions($('objectOptions'), 'attn_object', STUDY_CONFIG.attentionCheck.options, (v) => {
-    state.attention.objectAnswer = v; validateAttention();
+  // Step 3: one neutral attention item (first answer recorded, no feedback)
+  renderOptions($('objectOptions'), 'attn_object', STUDY_CONFIG.attentionOptions, (v) => {
+    if (state.attention.response === null) state.attention.answeredAt = new Date().toISOString();
+    if (state.attention.firstResponse === undefined || state.attention.firstResponse === null) state.attention.firstResponse = v;
+    state.attention.response = v;                  // final answer; attention_pass uses the FIRST answer
+    validateAttention();
   });
-  renderScale($('instructedScale'), 'attn_instructed', STUDY_CONFIG.agree5, null, true, validateAttention);
-  $('btnNext4').addEventListener('click', () => { if (validateAttention()) goToStep(5); });
+  checkRadio('attn_object', state.attention.response);
+  validateAttention();
+  $('btnNext3').addEventListener('click', () => { if (validateAttention()) goToStep(4); });
 
-  // Step 5: THHT instructions -> start the task timer
+  // Step 4: THHT instructions
+  $('rewardRule').innerHTML = biCfg(STUDY_CONFIG.rewardRuleText,
+    '[MISSING: rule and reward for the other participant — set STUDY_CONFIG.rewardRuleText]',
+    '[缺失：另一位参与者的规则与奖励说明——请设置 STUDY_CONFIG.rewardRuleText]');
   $('btnStartTask').addEventListener('click', () => {
-    state.thht.startTime = Date.now();
-    goToStep(6);
+    if (!state.thht.startTime) state.thht.startTime = Date.now();
+    goToStep(5);
   });
 
-  // Step 6: THHT selection
+  // Step 5: THHT selection (unchanged grid)
   renderPuzzleGrid();
   updateTHHTUI();
   $('btnSubmitTHHT').addEventListener('click', submitTHHT);
@@ -1572,47 +1789,76 @@ function init() {
   $('btnConfirmSubmit').addEventListener('click', () => closeConfirmModal(true));
   $('confirmOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeConfirmModal(false); });
 
-  // Step 7: motivation check (5-point)
-  renderRatingItems($('motivationItems'), STUDY_CONFIG.motivationItems, STUDY_CONFIG.agree5,
-                    null, true, validateMotivation);
-  $('btnNext7').addEventListener('click', () => { if (validateMotivation()) goToStep(8); });
+  // Step 6: Current Mood (SHS, 8 items, 5-point agreement)
+  renderRatingItems($('shsItems'), STUDY_CONFIG.shsItems, STUDY_CONFIG.agree5, null, true, validateSHS);
+  STUDY_CONFIG.shsItems.forEach(it => checkRadio(it.id, state.scales[it.id]));
+  validateSHS();
+  $('btnNext6').addEventListener('click', () => { if (validateSHS()) goToStep(7); });
 
-  // Step 8: manipulation check (1-7)
-  renderRatingItems($('manipulationItems'), STUDY_CONFIG.manipulationItems, STUDY_CONFIG.scale7,
-                    STUDY_CONFIG.scale7Anchors, false, validateManipulation);
-  $('seenBeforeNum').textContent = (STUDY_CONFIG.manipulationItems.length + 1) + '.';
-  renderOptions($('seenBeforeOptions'), 'seen_before', STUDY_CONFIG.seenBeforeOptions, (v) => {
-    state.choices.seenBefore = v; validateManipulation();
+  // Step 7: perceived violence
+  renderScale($('violenceScale'), 'perceived_violence', STUDY_CONFIG.violence5, null, true, validateViolence);
+  checkRadio('perceived_violence', state.scales.perceived_violence);
+  validateViolence();
+  $('btnNext7').addEventListener('click', () => { if (validateViolence()) goToStep(8); });
+
+  // Step 8: belief in the other participant
+  renderOptions($('beliefOptions'), 'believed_other', STUDY_CONFIG.beliefOptions, (v) => {
+    state.choices.believedOtherParticipant = v; validateBelief();
   });
-  $('btnNext8').addEventListener('click', () => { if (validateManipulation()) goToStep(9); });
+  checkRadio('believed_other', state.choices.believedOtherParticipant);
+  validateBelief();
+  $('btnNext8').addEventListener('click', () => { if (validateBelief()) goToStep(9); });
 
-  // Step 9: suspicion check
-  renderScale($('beliefScale'), 'susp_belief', STUDY_CONFIG.belief7,
-              STUDY_CONFIG.belief7Anchors, false, validateSuspicion);
-  $('studyPurpose').addEventListener('input', validateSuspicion);
-  $('btnNext9').addEventListener('click', () => { if (validateSuspicion()) goToStep(10); });
-
-  // Step 10: demographics and media use
-  ['age', 'gender', 'education'].forEach(id => {
+  // Step 9: background (4 items)
+  if (state.demographics.age !== null) $('age').value = state.demographics.age;
+  $('gender').value = state.demographics.gender || '';
+  ['age', 'gender'].forEach(id => {
     $(id).addEventListener('input', validateDemographics);
     $(id).addEventListener('change', validateDemographics);
   });
   renderOptions($('dailyTimeOptions'), 'daily_time', STUDY_CONFIG.dailyTimeOptions, (v) => {
     state.choices.dailyShortVideoTime = v; validateDemographics();
   });
-  renderScale($('aiFreqScale'), 'media_ai_freq', STUDY_CONFIG.freq5, null, true, validateDemographics);
-  renderScale($('violentFreqScale'), 'media_violent_freq', STUDY_CONFIG.freq5, null, true, validateDemographics);
-  renderOptions($('fruitQueenOptions'), 'fruit_queen', STUDY_CONFIG.fruitQueenOptions, (v) => {
-    state.choices.seenFruitQueenType = v; validateDemographics();
-  });
-  $('btnNext10').addEventListener('click', () => { if (validateDemographics()) goToStep(11); });
+  checkRadio('daily_time', state.choices.dailyShortVideoTime);
+  renderScale($('aiFreqScale'), 'ai_content_freq', STUDY_CONFIG.freq5, null, true, validateDemographics);
+  checkRadio('ai_content_freq', state.scales.ai_content_freq);
+  validateDemographics();
+  $('btnNext9').addEventListener('click', () => { if (validateDemographics()) { state.finishedAt = new Date().toISOString(); goToStep(10); } });
 
-  // Step 11: debrief data decision
+  // Step 10: debrief
+  $('debriefSupport').innerHTML = 'If any part of this study made you feel uncomfortable or distressed, please contact the researcher at <strong>' +
+    (STUDY_CONFIG.contacts.researcher ? STUDY_CONFIG.contacts.researcher.en : '[MISSING: researcher name, email address]') +
+    '</strong>, or contact <strong>' + (STUDY_CONFIG.contacts.support ? STUDY_CONFIG.contacts.support.en : '[MISSING: counselling / student support service, contact details]') + '</strong>.' +
+    '<span class="zh" lang="zh-Hans">如果本研究的任何部分让您感到不适或困扰，请联系研究者<strong>' +
+    (STUDY_CONFIG.contacts.researcher ? STUDY_CONFIG.contacts.researcher.zh : '[缺失：研究者姓名、电子邮箱]') + '</strong>，或联系<strong>' +
+    (STUDY_CONFIG.contacts.support ? STUDY_CONFIG.contacts.support.zh : '[缺失：学校心理咨询或学生支持服务的联系方式]') + '</strong>。</span>';
+  $('debriefWithdrawal').innerHTML = biCfg(STUDY_CONFIG.withdrawalPolicyText,
+    '[MISSING: how and until when data can be withdrawn after this page — must match the actual storage method; set STUDY_CONFIG.withdrawalPolicyText]',
+    '[缺失：离开本页后能否及在何时之前撤回数据——须与实际存储方式一致；请设置 STUDY_CONFIG.withdrawalPolicyText]');
   $('btnKeepData').addEventListener('click', () => recordDataDecision('keep'));
   $('btnWithdrawData').addEventListener('click', () => recordDataDecision('withdraw'));
-  $('btnDownload').addEventListener('click', downloadResults);
+  $('btnRetryUpload').addEventListener('click', () => { $('uploadError').hidden = true; sendCurrent(); });
+  $('btnDownload').addEventListener('click', () => download('THHT_' + state.participantId + '.json', $('resultsJson').textContent, 'application/json'));
+  $('btnDownloadCsv').addEventListener('click', () => state.lastRecord && download('THHT_' + state.participantId + '.csv', recordToCSV(state.lastRecord), 'text/csv'));
 
-  goToStep(1);
+  // Withdraw link (every step)
+  $('btnWithdrawLink').addEventListener('click', openWithdraw);
+  $('btnWithdrawCancel').addEventListener('click', () => goToStep(returnStep || state.currentStep));
+  $('btnWithdrawConfirm').addEventListener('click', confirmWithdraw);
+
+  // Restore position after a refresh
+  if (state.withdrawn && state.withdrawnAtStep !== 10) {
+    goToStep('withdraw');
+    showWithdrawDone();
+  } else {
+    goToStep(state.currentStep || 1);
+    if (state.debrief.dataDecision) {
+      lockDecisionButtons();
+      $('btnWithdrawLink').hidden = true;
+      if (state.submission.status === 'uploading') state.submission.status = 'failed';   // interrupted upload: allow retry
+      showSubmissionStatus(state.debrief.dataDecision);
+    }
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);
