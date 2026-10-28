@@ -663,14 +663,6 @@
   <h2>If you feel uncomfortable<span class="zh" lang="zh-Hans">如果您感到不适</span></h2>
   <p id="debriefSupport"><!-- filled from STUDY_CONFIG.contacts --></p>
 
-  <h2>Your data<span class="zh" lang="zh-Hans">您的数据</span></h2>
-  <p id="debriefWithdrawal"><!-- filled from STUDY_CONFIG.withdrawalPolicyText --></p>
-  <p>Your decision has no consequences for you. Please choose one option.<span class="zh" lang="zh-Hans">您的决定不会对您产生任何影响。请选择以下其中一项。</span></p>
-
-  <div class="decision-buttons">
-    <button type="button" class="btn" id="btnKeepData">I agree to keep my data in the study.<span class="zh" lang="zh-Hans">我同意在研究中保留我的数据。</span></button>
-    <button type="button" class="btn btn-secondary" id="btnWithdrawData">I would prefer to withdraw my data after debriefing.<span class="zh" lang="zh-Hans">了解研究说明后，我希望撤回我的数据。</span></button>
-  </div>
   <div class="notice" id="decisionNotice" role="status" hidden></div>
   <div class="error-box" id="uploadError" role="alert" hidden>
     <p>Your responses could not be uploaded. Please check your connection and select Try again. Do not close this page yet.<span class="zh" lang="zh-Hans">您的回答未能上传。请检查网络连接后点击“重试”。请暂时不要关闭本页面。</span></p>
@@ -778,7 +770,6 @@ const STUDY_CONFIG = {
      are actually stored (e.g. records are anonymous and keyed only by the
      random participant_id; withdrawal is possible until <date> by quoting
      the ID). Format { en: '...', zh: '...' }. */
-  withdrawalPolicyText: null,
 
   /* ---- Fixed questionnaire content (not editable per study run) ---- */
   /* Current Mood: 8 items adapted from the State Hostility Scale
@@ -827,7 +818,6 @@ function missingConfig() {
   if (!STUDY_CONFIG.rewardRuleText) m.push('rewardRuleText');
   if (!STUDY_CONFIG.contacts.researcher) m.push('contacts.researcher');
   if (!STUDY_CONFIG.contacts.support) m.push('contacts.support');
-  if (!STUDY_CONFIG.withdrawalPolicyText) m.push('withdrawalPolicyText');
   return m;
 }
 const PREVIEW = new URLSearchParams(location.search).get('preview') === '1';
@@ -1532,9 +1522,8 @@ function buildResults(includeResponses) {
     withdrawn: state.withdrawn,
     withdrawn_at: state.withdrawnAt,
     withdrawn_at_step: state.withdrawnAtStep,
-    data_decision: state.debrief.dataDecision,
-    completion_status: state.withdrawn ? (state.debrief.dataDecision === 'withdraw' ? 'withdrawn_after_debrief' : 'withdrawn_during_study')
-                                       : (state.debrief.dataDecision === 'keep' ? 'complete' : 'in_progress'),
+    completion_status: state.withdrawn ? 'withdrawn_during_study'
+                                       : (state.debrief.dataDecision === 'complete' ? 'complete' : 'in_progress'),
     submission_status: state.submission.status
   };
   if (!includeResponses) return base;            // withdrawal: no response data
@@ -1632,14 +1621,14 @@ function showSubmissionStatus(kind) {           // kind: 'keep' | 'withdraw' | '
   $('uploadError').hidden = !(s === 'failed' && kind !== 'header');
   notice.classList.toggle('is-warn', s !== 'uploaded');
   if (s === 'uploading') {
-    notice.innerHTML = bi('Saving your choice… please keep this page open.', '正在保存您的选择……请不要关闭本页面。');
+    notice.innerHTML = bi('Saving your responses… please keep this page open.', '正在保存您的回答……请不要关闭本页面。');
   } else if (s === 'uploaded') {
-    notice.innerHTML = kind === 'keep'
-      ? bi('Thank you. Your responses have been uploaded and will be kept in the study. You may now close this page.', '谢谢。您的回答已成功上传并将保留在研究中。您现在可以关闭本页面。')
+    notice.innerHTML = kind !== 'header'
+      ? bi('Thank you. Your responses have been uploaded. You may now close this page.', '谢谢。您的回答已成功上传。您现在可以关闭本页面。')
       : bi('Thank you. Your withdrawal has been recorded and your responses will not be used. You may now close this page.', '谢谢。您的退出已记录，您的回答将不会被使用。您现在可以关闭本页面。');
   } else if (s === 'local_only') {
-    notice.innerHTML = bi('Your choice was saved in this browser only. It was NOT uploaded to the researchers, because no data server is connected to this page yet.',
-                          '您的选择仅保存在本浏览器中，尚未上传给研究者，因为本页面尚未连接数据服务器。');
+    notice.innerHTML = bi('Your responses were saved in this browser only. It was NOT uploaded to the researchers, because no data server is connected to this page yet.',
+                          '您的回答仅保存在本浏览器中，尚未上传给研究者，因为本页面尚未连接数据服务器。');
   } else if (s === 'failed') {
     notice.innerHTML = bi('Not uploaded yet.', '尚未上传。');
   }
@@ -1655,7 +1644,6 @@ async function recordDataDecision(decision) {
   state.debrief.dataDecision = decision;
   state.debrief.decidedAt = new Date().toISOString();
   state.finishedAt = state.finishedAt || new Date().toISOString();
-  if (decision === 'withdraw') { state.withdrawn = true; state.withdrawnAt = state.debrief.decidedAt; state.withdrawnAtStep = 10; }
   lockDecisionButtons();
   $('btnWithdrawLink').hidden = true;
   saveState();
@@ -1664,18 +1652,13 @@ async function recordDataDecision(decision) {
 async function sendCurrent() {
   showSubmissionStatus(state.debrief.dataDecision);
   if (state.submission.status === 'not_submitted' || state.submission.status === 'failed' || !state.submission.status) {
-    const p = submitResults(buildResults(state.debrief.dataDecision === 'keep'));
+    const p = submitResults(buildResults(true));
     showSubmissionStatus(state.debrief.dataDecision);
     await p;
   }
   showSubmissionStatus(state.debrief.dataDecision);
 }
-function lockDecisionButtons() {
-  $('btnKeepData').disabled = true;
-  $('btnWithdrawData').disabled = true;
-  const d = state.debrief.dataDecision;
-  if (d) $(d === 'keep' ? 'btnKeepData' : 'btnWithdrawData').classList.add('is-chosen');
-}
+function lockDecisionButtons() {}   // no post-completion choice: completed data is used by default
 
 /* Neutral withdrawal from any step (header link). Not a failure; the
    record carries withdrawn = true and no response data. */
@@ -1823,7 +1806,7 @@ function init() {
   renderScale($('aiFreqScale'), 'ai_content_freq', STUDY_CONFIG.freq5, null, true, validateDemographics);
   checkRadio('ai_content_freq', state.scales.ai_content_freq);
   validateDemographics();
-  $('btnNext9').addEventListener('click', () => { if (validateDemographics()) { state.finishedAt = new Date().toISOString(); goToStep(10); } });
+  $('btnNext9').addEventListener('click', () => { if (validateDemographics()) { state.finishedAt = new Date().toISOString(); goToStep(10); recordDataDecision('complete'); } });
 
   // Step 10: debrief
   $('debriefSupport').innerHTML = 'If any part of this study made you feel uncomfortable or distressed, please contact the researcher at <strong>' +
@@ -1832,11 +1815,6 @@ function init() {
     '<span class="zh" lang="zh-Hans">如果本研究的任何部分让您感到不适或困扰，请联系研究者<strong>' +
     (STUDY_CONFIG.contacts.researcher ? STUDY_CONFIG.contacts.researcher.zh : '[缺失：研究者姓名、电子邮箱]') + '</strong>，或联系<strong>' +
     (STUDY_CONFIG.contacts.support ? STUDY_CONFIG.contacts.support.zh : '[缺失：学校心理咨询或学生支持服务的联系方式]') + '</strong>。</span>';
-  $('debriefWithdrawal').innerHTML = biCfg(STUDY_CONFIG.withdrawalPolicyText,
-    '[MISSING: how and until when data can be withdrawn after this page — must match the actual storage method; set STUDY_CONFIG.withdrawalPolicyText]',
-    '[缺失：离开本页后能否及在何时之前撤回数据——须与实际存储方式一致；请设置 STUDY_CONFIG.withdrawalPolicyText]');
-  $('btnKeepData').addEventListener('click', () => recordDataDecision('keep'));
-  $('btnWithdrawData').addEventListener('click', () => recordDataDecision('withdraw'));
   $('btnRetryUpload').addEventListener('click', () => { $('uploadError').hidden = true; sendCurrent(); });
   $('btnDownload').addEventListener('click', () => download('THHT_' + state.participantId + '.json', $('resultsJson').textContent, 'application/json'));
   $('btnDownloadCsv').addEventListener('click', () => state.lastRecord && download('THHT_' + state.participantId + '.csv', recordToCSV(state.lastRecord), 'text/csv'));
@@ -1847,7 +1825,7 @@ function init() {
   $('btnWithdrawConfirm').addEventListener('click', confirmWithdraw);
 
   // Restore position after a refresh
-  if (state.withdrawn && state.withdrawnAtStep !== 10) {
+  if (state.withdrawn) {
     goToStep('withdraw');
     showWithdrawDone();
   } else {
