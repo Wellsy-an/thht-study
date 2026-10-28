@@ -486,7 +486,7 @@
   <p class="step-kicker">Step 3 of 10<span class="zh" lang="zh-Hans">第 3 步，共 10 步</span></p>
   <h1 id="h-step3" tabindex="-1">A Question About the Video<span class="zh" lang="zh-Hans">关于视频的问题</span></h1>
   <fieldset class="question">
-    <legend><span class="q-num">1.</span><span id="attnQuestion">In the wedding scene at the beginning of the video, what was the tomato wearing?<span class="zh" lang="zh-Hans">在视频开头的婚礼场景中，番茄穿着什么？</span></span><span class="req" aria-hidden="true">*</span></legend>
+    <legend><span class="q-num">1.</span><span id="attnQuestion">When the tomato came home and opened the door, what fell from her hands?<span class="zh" lang="zh-Hans">番茄回到家推门进来时，她手里掉落的是什么？</span></span><span class="req" aria-hidden="true">*</span></legend>
     <div class="options" id="objectOptions"><!-- rendered from the assigned video's attention config --></div>
   </fieldset>
   <div class="actions">
@@ -737,21 +737,21 @@ const STUDY_CONFIG = {
      violence differs (random 1:1 assignment in the browser, persisted in
      localStorage so a refresh never reassigns).
      REQUIRED per condition: video_id and src (real video URL).
-     The attention answer is shared by both versions (script shot 1, 00:00-00:06:
-     "番茄身穿白色婚纱" - the tomato wears a white wedding dress). */
+     The attention answer is shared by both versions (script shot 3, 00:13-00:20:
+     "番茄推门而入，手里的购物袋掉在地上" - her shopping bag falls to the floor). */
   videos: {
-    fruit_violent:    { video_id: null, character_type: 'fruit', violence_condition: 'violent',    src: null, attentionCorrectOptionId: 'white_wedding_dress' },
-    fruit_nonviolent: { video_id: null, character_type: 'fruit', violence_condition: 'nonviolent', src: null, attentionCorrectOptionId: 'white_wedding_dress' }
+    fruit_violent:    { video_id: null, character_type: 'fruit', violence_condition: 'violent',    src: null, attentionCorrectOptionId: 'shopping_bag' },
+    fruit_nonviolent: { video_id: null, character_type: 'fruit', violence_condition: 'nonviolent', src: null, attentionCorrectOptionId: 'shopping_bag' }
   },
   simulatedDurationSec: 18,        // preview-mode placeholder only
 
   /* Neutral attention item (identical in both conditions):
-     "In the wedding scene at the beginning of the video, what was the tomato wearing?" */
+     "When the tomato came home and opened the door, what fell from her hands?" */
   attentionOptions: [
-    { id: 'red_evening_gown',    label: 'A red evening gown',    zh: '一件红色晚礼服' },
-    { id: 'white_wedding_dress', label: 'A white wedding dress', zh: '一件白色婚纱' },
-    { id: 'yellow_raincoat',     label: 'A yellow raincoat',     zh: '一件黄色雨衣' },
-    { id: 'green_sweater',       label: 'A green sweater',       zh: '一件绿色毛衣' }
+    { id: 'bouquet',      label: 'A bouquet of flowers', zh: '一束鲜花' },
+    { id: 'shopping_bag', label: 'A shopping bag',       zh: '一个购物袋' },
+    { id: 'phone',        label: 'Her mobile phone',     zh: '她的手机' },
+    { id: 'keys',         label: 'A set of keys',        zh: '一串钥匙' }
   ],
 
   /* REQUIRED: the other participant's rule + reward, shown on the THHT
