@@ -442,7 +442,6 @@
     <span>I consent to participate in this study.<span class="zh" lang="zh-Hans">我同意参与本研究。</span></span>
   </label>
 
-  <div class="error-box" id="configError" role="alert" hidden></div>
 
   <div class="actions">
     <p class="hint" id="hint1">Please confirm both statements to continue.<span class="zh" lang="zh-Hans">请确认以上两项声明后继续。</span></p>
@@ -510,7 +509,6 @@
   <ul>
     <li>There are 30 puzzles in total, grouped into Easy, Medium and Hard puzzles.<span class="zh" lang="zh-Hans">共有30道题，分为简单题、中等题和困难题三类。</span></li>
     <li>The other participant will attempt to solve the 11 puzzles you select.<span class="zh" lang="zh-Hans">另一位参与者将尝试完成您所选择的11道题。</span></li>
-    <li id="rewardRule"><!-- filled from STUDY_CONFIG.rewardRuleText --></li>
   </ul>
   <p>There is no time limit for making your selection.<span class="zh" lang="zh-Hans">您选择题目没有时间限制。</span></p>
 
@@ -660,19 +658,16 @@
   <h2>No one was affected by your choices<span class="zh" lang="zh-Hans">您的选择不会影响任何人</span></h2>
   <p>No real participant will be harmed by, or lose any payment because of, the puzzles you selected.<span class="zh" lang="zh-Hans">不会有任何真实参与者因您选择的题目而受到伤害或失去任何报酬。</span></p>
 
-  <h2>If you feel uncomfortable<span class="zh" lang="zh-Hans">如果您感到不适</span></h2>
-  <p id="debriefSupport"><!-- filled from STUDY_CONFIG.contacts --></p>
-
   <div class="notice" id="decisionNotice" role="status" hidden></div>
   <div class="error-box" id="uploadError" role="alert" hidden>
     <p>Your responses could not be uploaded. Please check your connection and select Try again. Do not close this page yet.<span class="zh" lang="zh-Hans">您的回答未能上传。请检查网络连接后点击“重试”。请暂时不要关闭本页面。</span></p>
     <button type="button" class="btn btn-secondary" id="btnRetryUpload">Try again<span class="zh" lang="zh-Hans">重试</span></button>
   </div>
 
-  <!-- RESEARCHER TEST EXPORT: only shown in ?preview=1 mode. Not a data-collection system. -->
+  <!-- RESEARCHER EXPORT: shown after the record is built (all modes) so data can be retrieved while no server is connected. -->
   <div class="results-panel" id="resultsPanel" hidden>
-    <h2>Researcher test export (preview only)<span class="zh" lang="zh-Hans">研究者测试导出（仅预览）</span></h2>
-    <p class="muted small">This is a local test copy of the record. It has not been uploaded and is not a data-collection system.<span class="zh" lang="zh-Hans">这是本地测试记录，尚未上传，也不是正式数据收集系统。</span></p>
+    <h2>Researcher data export<span class="zh" lang="zh-Hans">研究者数据导出</span></h2>
+    <p class="muted small">This is a local copy of the record, saved in this browser only.<span class="zh" lang="zh-Hans">这是本记录的本地副本，仅保存在本浏览器中。</span></p>
     <pre id="resultsJson"></pre>
     <button type="button" class="btn btn-secondary" id="btnDownload">Download JSON<span class="zh" lang="zh-Hans">下载 JSON</span></button>
     <button type="button" class="btn btn-secondary" id="btnDownloadCsv">Download CSV<span class="zh" lang="zh-Hans">下载 CSV</span></button>
@@ -714,9 +709,9 @@
 /* =====================================================================
    3.1  RESEARCHER CONFIG  (edit ONLY this block for the formal study)
    ---------------------------------------------------------------------
-   Every value marked  REQUIRED  is still null = MISSING. Do not invent
-   values. While any REQUIRED value is null the consent page shows a
-   bilingual "study not yet open" message and the study cannot start.
+   submitEndpoint may stay null: the study still runs, and the debrief
+   honestly says the record is saved in this browser only (not uploaded)
+   and offers JSON/CSV download.
    (?preview=1 lets researchers test the flow with the real assigned video;
    nothing is uploaded in preview mode.)
    ===================================================================== */
@@ -725,7 +720,7 @@ const STUDY_CONFIG = {
   protocol_version: 'thht-online-v7',
   shs_version: 'shs8-adapted-v1',
 
-  /* REQUIRED: HTTPS endpoint that accepts a JSON POST of one record and
+  /* OPTIONAL: HTTPS endpoint that accepts a JSON POST of one record and
      answers 2xx only after the record is stored. null = no backend. */
   submitEndpoint: null,
 
@@ -753,18 +748,6 @@ const STUDY_CONFIG = {
     { id: 'blue',  label: 'Blue',  zh: '蓝色' },
     { id: 'grey',  label: 'Grey',  zh: '灰色' }
   ],
-
-  /* REQUIRED: the other participant's rule + reward, shown on the THHT
-     instructions page. Format { en: '...', zh: '...' }. Example of the
-     intended rule (reward wording still to be decided by the researcher):
-     "they have 10 minutes and must solve at least 10 of the 11 puzzles to ..." */
-  rewardRuleText: null,
-
-  /* REQUIRED: contacts shown in the debrief. Format { en: '...', zh: '...' }. */
-  contacts: {
-    researcher: null,              // researcher name + email
-    support: null                  // counselling / support service
-  },
 
   /* REQUIRED: withdrawal promise shown in the debrief. Must match how data
      are actually stored (e.g. records are anonymous and keyed only by the
@@ -805,19 +788,15 @@ const STUDY_CONFIG = {
   freq5: [['Never', '从不'], ['Rarely', '很少'], ['Sometimes', '有时'], ['Often', '经常'], ['Very often', '非常频繁']]
 };
 
-/* Lists every REQUIRED config value that is still missing (null). */
+/* Lists missing video settings (diagnostic only; does not block start). */
 function missingConfig() {
   const m = [];
-  if (!STUDY_CONFIG.submitEndpoint) m.push('submitEndpoint');
   Object.keys(STUDY_CONFIG.videos).forEach(k => {
     const v = STUDY_CONFIG.videos[k];
     if (!v.video_id) m.push('videos.' + k + '.video_id');
     if (!v.src) m.push('videos.' + k + '.src');
     if (!v.attentionCorrectOptionId) m.push('videos.' + k + '.attentionCorrectOptionId');
   });
-  if (!STUDY_CONFIG.rewardRuleText) m.push('rewardRuleText');
-  if (!STUDY_CONFIG.contacts.researcher) m.push('contacts.researcher');
-  if (!STUDY_CONFIG.contacts.support) m.push('contacts.support');
   return m;
 }
 const PREVIEW = new URLSearchParams(location.search).get('preview') === '1';
@@ -1113,14 +1092,14 @@ function setGate(buttonId, hintId, ok, readyText, pendingText) {
 const answered = (key) => Number.isInteger(state.scales[key]);
 const ALL_DONE = ['All questions answered.', '所有问题均已作答。'];
 
-function configBlocked() { return MISSING.length > 0 && !PREVIEW; }
+function configBlocked() { return false; }
 
 function validateConsent() {            // Step 1: both boxes + config complete
   state.consent.age18 = $('chkAge').checked;
   state.consent.consent = $('chkConsent').checked;
   const ok = state.consent.age18 && state.consent.consent && !configBlocked();
   setGate('btnNext1', 'hint1', ok, ['Thank you. You can now continue.', '谢谢。您现在可以继续。'],
-          configBlocked() ? ['This study is not open yet.', '本研究尚未开放。'] : ['Please confirm both statements to continue.', '请确认以上两项声明后继续。']);
+          ['Please confirm both statements to continue.', '请确认以上两项声明后继续。']);
   saveState();
   return ok;
 }
@@ -1633,7 +1612,7 @@ function showSubmissionStatus(kind) {           // kind: 'keep' | 'withdraw' | '
     notice.innerHTML = bi('Not uploaded yet.', '尚未上传。');
   }
   notice.hidden = false;
-  if (PREVIEW && kind !== 'header' && state.lastRecord) {
+  if (kind !== 'header' && state.lastRecord) {
     $('resultsJson').textContent = JSON.stringify(state.lastRecord, null, 2);
     $('resultsPanel').hidden = false;
   }
@@ -1721,13 +1700,6 @@ function init() {
   if (PREVIEW) $('previewBanner').hidden = false;
 
   // Step 1: consent (+ required-config check)
-  if (MISSING.length) {
-    const box = $('configError');
-    box.innerHTML = '<p>' + bi('This study is not open yet. Please try again later.', '本研究尚未开放，请稍后再试。') + '</p>' +
-      '<p class="small">' + bi('Missing study settings: ', '缺少的研究设置：') + '</p><ul class="small"><li>' + MISSING.join('</li><li>') + '</li></ul>' +
-      (PREVIEW ? '<p class="small">' + bi('Preview mode: you may continue for testing only.', '预览模式：仅供测试，可继续。') + '</p>' : '');
-    box.hidden = false;
-  }
   $('chkAge').checked = state.consent.age18;
   $('chkConsent').checked = state.consent.consent;
   $('chkAge').addEventListener('change', validateConsent);
@@ -1756,9 +1728,6 @@ function init() {
   $('btnNext3').addEventListener('click', () => { if (validateAttention()) goToStep(4); });
 
   // Step 4: THHT instructions
-  $('rewardRule').innerHTML = biCfg(STUDY_CONFIG.rewardRuleText,
-    '[MISSING: rule and reward for the other participant — set STUDY_CONFIG.rewardRuleText]',
-    '[缺失：另一位参与者的规则与奖励说明——请设置 STUDY_CONFIG.rewardRuleText]');
   $('btnStartTask').addEventListener('click', () => {
     if (!state.thht.startTime) state.thht.startTime = Date.now();
     goToStep(5);
@@ -1809,12 +1778,6 @@ function init() {
   $('btnNext9').addEventListener('click', () => { if (validateDemographics()) { state.finishedAt = new Date().toISOString(); goToStep(10); recordDataDecision('complete'); } });
 
   // Step 10: debrief
-  $('debriefSupport').innerHTML = 'If any part of this study made you feel uncomfortable or distressed, please contact the researcher at <strong>' +
-    (STUDY_CONFIG.contacts.researcher ? STUDY_CONFIG.contacts.researcher.en : '[MISSING: researcher name, email address]') +
-    '</strong>, or contact <strong>' + (STUDY_CONFIG.contacts.support ? STUDY_CONFIG.contacts.support.en : '[MISSING: counselling / student support service, contact details]') + '</strong>.' +
-    '<span class="zh" lang="zh-Hans">如果本研究的任何部分让您感到不适或困扰，请联系研究者<strong>' +
-    (STUDY_CONFIG.contacts.researcher ? STUDY_CONFIG.contacts.researcher.zh : '[缺失：研究者姓名、电子邮箱]') + '</strong>，或联系<strong>' +
-    (STUDY_CONFIG.contacts.support ? STUDY_CONFIG.contacts.support.zh : '[缺失：学校心理咨询或学生支持服务的联系方式]') + '</strong>。</span>';
   $('btnRetryUpload').addEventListener('click', () => { $('uploadError').hidden = true; sendCurrent(); });
   $('btnDownload').addEventListener('click', () => download('THHT_' + state.participantId + '.json', $('resultsJson').textContent, 'application/json'));
   $('btnDownloadCsv').addEventListener('click', () => state.lastRecord && download('THHT_' + state.participantId + '.csv', recordToCSV(state.lastRecord), 'text/csv'));
