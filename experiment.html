@@ -486,7 +486,7 @@
   <p class="step-kicker">Step 3 of 10<span class="zh" lang="zh-Hans">第 3 步，共 10 步</span></p>
   <h1 id="h-step3" tabindex="-1">A Question About the Video<span class="zh" lang="zh-Hans">关于视频的问题</span></h1>
   <fieldset class="question">
-    <legend><span class="q-num">1.</span><span id="attnQuestion">When the tomato came home and opened the door, what fell from her hands?<span class="zh" lang="zh-Hans">番茄回到家推门进来时，她手里掉落的是什么？</span></span><span class="req" aria-hidden="true">*</span></legend>
+    <legend><span class="q-num">1.</span><span id="attnQuestion">What color is the suit that the banana is wearing in the video?<span class="zh" lang="zh-Hans">视频中香蕉穿的西装是什么颜色？</span></span><span class="req" aria-hidden="true">*</span></legend>
     <div class="options" id="objectOptions"><!-- rendered from the assigned video's attention config --></div>
   </fieldset>
   <div class="actions">
@@ -717,7 +717,7 @@
    Every value marked  REQUIRED  is still null = MISSING. Do not invent
    values. While any REQUIRED value is null the consent page shows a
    bilingual "study not yet open" message and the study cannot start.
-   (?preview=1 lets researchers test the flow with a simulated video;
+   (?preview=1 lets researchers test the flow with the real assigned video;
    nothing is uploaded in preview mode.)
    ===================================================================== */
 const STUDY_CONFIG = {
@@ -737,21 +737,21 @@ const STUDY_CONFIG = {
      violence differs (random 1:1 assignment in the browser, persisted in
      localStorage so a refresh never reassigns).
      REQUIRED per condition: video_id and src (real video URL).
-     The attention answer is shared by both versions (script shot 3, 00:13-00:20:
-     "番茄推门而入，手里的购物袋掉在地上" - her shopping bag falls to the floor). */
+     src is relative, so the page also works from a downloaded folder.
+     The attention answer (banana's suit = black) is shared by both versions. */
   videos: {
-    fruit_violent:    { video_id: null, character_type: 'fruit', violence_condition: 'violent',    src: null, attentionCorrectOptionId: 'shopping_bag' },
-    fruit_nonviolent: { video_id: null, character_type: 'fruit', violence_condition: 'nonviolent', src: null, attentionCorrectOptionId: 'shopping_bag' }
+    fruit_violent:    { video_id: 'fruit_violent_v1',    character_type: 'fruit', violence_condition: 'violent',    src: 'videos/fruit_violent.mp4',    attentionCorrectOptionId: 'black' },
+    fruit_nonviolent: { video_id: 'fruit_nonviolent_v1', character_type: 'fruit', violence_condition: 'nonviolent', src: 'videos/fruit_nonviolent.mp4', attentionCorrectOptionId: 'black' }
   },
-  simulatedDurationSec: 18,        // preview-mode placeholder only
+  simulatedDurationSec: 18,        // preview-mode fallback only (used if a condition has no src)
 
   /* Neutral attention item (identical in both conditions):
-     "When the tomato came home and opened the door, what fell from her hands?" */
+     "What color is the suit that the banana is wearing in the video?" */
   attentionOptions: [
-    { id: 'bouquet',      label: 'A bouquet of flowers', zh: '一束鲜花' },
-    { id: 'shopping_bag', label: 'A shopping bag',       zh: '一个购物袋' },
-    { id: 'phone',        label: 'Her mobile phone',     zh: '她的手机' },
-    { id: 'keys',         label: 'A set of keys',        zh: '一串钥匙' }
+    { id: 'black', label: 'Black', zh: '黑色' },
+    { id: 'white', label: 'White', zh: '白色' },
+    { id: 'blue',  label: 'Blue',  zh: '蓝色' },
+    { id: 'grey',  label: 'Grey',  zh: '灰色' }
   ],
 
   /* REQUIRED: the other participant's rule + reward, shown on the THHT
