@@ -216,6 +216,9 @@
     width: 64px; height: 64px; border-radius: 50%; border: 2px solid #fff; background: rgba(255,255,255,.12);
     color: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px;
   }
+  .video-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.25); }
+  .video-overlay[hidden] { display: none; }
+  .player-frame video[poster] { object-fit: contain; }
   .play-btn:hover { background: rgba(255,255,255,.22); }
   .player-controls { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
   .player-bar { flex: 1; height: 6px; background: #dfe3e8; border-radius: 3px; overflow: hidden; }
@@ -735,8 +738,8 @@ const STUDY_CONFIG = {
      src is relative, so the page also works from a downloaded folder.
      The attention answer (banana's suit = black) is shared by both versions. */
   videos: {
-    fruit_violent:    { video_id: 'fruit_violent_v1',    character_type: 'fruit', violence_condition: 'violent',    src: 'videos/fruit_violent.mp4',    attentionCorrectOptionId: 'black' },
-    fruit_nonviolent: { video_id: 'fruit_nonviolent_v1', character_type: 'fruit', violence_condition: 'nonviolent', src: 'videos/fruit_nonviolent.mp4', attentionCorrectOptionId: 'black' }
+    fruit_violent:    { video_id: 'fruit_violent_v1',    character_type: 'fruit', violence_condition: 'violent',    src: 'videos/fruit_violent.mp4',    poster: 'videos/fruit_violent.jpg',    mirror: 'https://cdn.jsdelivr.net/gh/Wellsy-an/thht-study@main/videos/fruit_violent.mp4',    attentionCorrectOptionId: 'black' },
+    fruit_nonviolent: { video_id: 'fruit_nonviolent_v1', character_type: 'fruit', violence_condition: 'nonviolent', src: 'videos/fruit_nonviolent.mp4', poster: 'videos/fruit_nonviolent.jpg', mirror: 'https://cdn.jsdelivr.net/gh/Wellsy-an/thht-study@main/videos/fruit_nonviolent.mp4', attentionCorrectOptionId: 'black' }
   },
   simulatedDurationSec: 18,        // preview-mode fallback only (used if a condition has no src)
 
@@ -1215,11 +1218,53 @@ function initVideo() {
   if (VIDEO && VIDEO.src) {
     /* ---- Real video ---- */
     const v = document.createElement('video');
-    v.src = VIDEO.src;
-    v.controls = true;
+    /* Load only on Play (slow networks): poster + our own Play button are
+       visible immediately; native controls appear once metadata is loaded. */
+    v.controls = false;
     v.autoplay = false;
     v.playsInline = true;
-    v.preload = 'auto';
+    v.preload = 'none';
+    if (VIDEO.poster) v.poster = VIDEO.poster;
+    const ICON_PLAY = '<svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
+    const overlay = document.createElement('div');
+    overlay.className = 'video-overlay';
+    overlay.innerHTML = '<button type="button" class="play-btn" id="btnPlay" aria-label="Play video / 播放视频">' + ICON_PLAY + '</button>';
+    /* Sources tried in order: the relative file (works on Pages and in the
+       downloaded folder), then a CDN mirror (jsDelivr) in case github.io is
+       blocked or very slow on the participant's network. */
+    const SOURCES = [VIDEO.src].concat(VIDEO.mirror && location.protocol.indexOf('http') === 0 ? [VIDEO.mirror] : []);
+    let srcIdx = 0;
+    let loadTimer = null, srcSet = false;
+    const setStatus = (en, zh) => { $('videoStatus').innerHTML = bi(en, zh); };
+    const showLoadError = () => {
+      clearTimeout(loadTimer); loadTimer = null;
+      $('videoError').hidden = false; overlay.hidden = false;
+      setStatus('Video unavailable', '视频无法播放');
+    };
+    const armLoadTimer = () => {
+      clearTimeout(loadTimer);
+      loadTimer = setTimeout(() => { if (v.readyState < 1) { state.video.loadErrors++; saveState(); if (!tryNextSource()) showLoadError(); } }, srcIdx < SOURCES.length - 1 ? 10000 : 20000);
+    };
+    const tryNextSource = () => {
+      if (srcIdx >= SOURCES.length - 1) return false;
+      srcIdx++; maxTime = 0; lastT = 0; state.video.playedSec = 0;
+      v.src = SOURCES[srcIdx]; state.video.source = v.src; saveState();
+      setStatus('Loading video…', '视频加载中…'); armLoadTimer();
+      const pr = v.play(); if (pr && pr.catch) pr.catch(() => {});
+      return true;
+    };
+    const startPlayback = () => {
+      $('videoError').hidden = true;
+      if (!srcSet) { v.src = SOURCES[srcIdx]; state.video.source = v.src; srcSet = true; }
+      if (v.readyState < 1) { setStatus('Loading video…', '视频加载中…'); armLoadTimer(); }
+      overlay.hidden = true;
+      const pr = v.play();
+      if (pr && pr.catch) pr.catch(() => { if (v.readyState >= 1) { overlay.hidden = false; } });
+    };
+    overlay.querySelector('button').addEventListener('click', startPlayback);
+    v.addEventListener('loadedmetadata', () => { clearTimeout(loadTimer); loadTimer = null; v.controls = true; });
+    v.addEventListener('waiting', () => { if (!v.ended) setStatus('Loading video…', '视频加载中…'); });
+    v.addEventListener('playing', () => setStatus('Playing', '正在播放'));
     v.setAttribute('controlsList', 'nodownload noplaybackrate');
     v.disablePictureInPicture = true;
     let maxTime = 0, lastT = 0;
@@ -1235,22 +1280,25 @@ function initVideo() {
     });
     v.addEventListener('seeking', () => { if (v.currentTime > maxTime + 0.5) v.currentTime = maxTime; lastT = v.currentTime; });
     v.addEventListener('ratechange', () => { if (v.playbackRate !== 1) v.playbackRate = 1; });
-    v.addEventListener('play', () => { state.video.started = true; $('videoStatus').innerHTML = bi('Playing', '正在播放'); });
+    v.addEventListener('play', () => { state.video.started = true; if (v.readyState >= 3) setStatus('Playing', '正在播放'); });
     v.addEventListener('pause', () => {
+      if (!v.controls) overlay.hidden = false;
       if (!v.ended) { state.video.pauseCount++; $('videoStatus').innerHTML = bi('Paused', '已暂停'); saveState(); }
     });
     v.addEventListener('ended', onVideoEnded);
     v.addEventListener('error', () => {
+      if (!srcSet) return;
       state.video.loadErrors++; saveState();
-      $('videoError').hidden = false;
-      $('videoStatus').innerHTML = bi('Video unavailable', '视频无法播放');
+      if (v.readyState < 1 && tryNextSource()) return;
+      showLoadError();
     });
     $('btnVideoRetry').addEventListener('click', () => {
       $('videoError').hidden = true; maxTime = 0; lastT = 0; state.video.playedSec = 0;
-      v.load();
+      v.controls = false; srcIdx = 0; v.src = SOURCES[0]; startPlayback();
     });
     pauseActiveVideo = () => { if (!v.paused) v.pause(); };
     frame.appendChild(v);
+    frame.appendChild(overlay);
     return;
   }
 
@@ -1530,6 +1578,7 @@ function buildResults(includeResponses) {
     video_hidden_count: v.hiddenCount,
     video_hidden_sec: Math.round(v.hiddenMs / 100) / 10,
     video_load_errors: v.loadErrors,
+    video_source: v.source || null,
     watch_ok: v.watchOk,
     attention_response: state.attention.firstResponse !== undefined ? state.attention.firstResponse : null,
     attention_final_response: state.attention.response,
