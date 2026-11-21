@@ -5,7 +5,20 @@ const $ = id => document.getElementById(id);
 const CONDITIONS = { fruit_violent: 'Violent / 暴力', fruit_nonviolent: 'Non-violent / 非暴力' };
 const COLORS = ['#2f4a68','#7d9cc0','#b5bcc5','#59626d'];
 const charts = {};
-let client, channel, timer, records = [], authorized = false, generation = 0, refreshing = false, rerun = false;
+const ACCESS_KEY = 'thht_private_management_access';
+const REFRESH_MS = 5000;
+let timer, records = [], authorized = false, generation = 0, refreshing = false, rerun = false;
+let managementToken = '';
+// URL fragments are not sent to the web host or in HTTP referrers. Consume and
+// clear the fragment before requesting any response data. Only the capability,
+// never raw participant records, is remembered in this browser.
+const incomingToken = new URLSearchParams(location.hash.slice(1)).get('manage');
+if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+try { managementToken = localStorage.getItem(ACCESS_KEY) || ''; } catch (_) {}
+if (incomingToken && /^[A-Za-z0-9_-]{64}$/.test(incomingToken)) {
+  managementToken = incomingToken;
+  try { localStorage.setItem(ACCESS_KEY, managementToken); } catch (_) {}
+}
 const mean = xs => { const a = xs.filter(x => typeof x === 'number' && Number.isFinite(x)); return a.length ? Math.round(a.reduce((s,x)=>s+x,0)/a.length*1000)/1000 : null; };
 const day = s => new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(s));
 const time = s => s ? new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(s))+' UTC+8' : '—';
@@ -61,41 +74,42 @@ function render(){
 }
 function clearData(){
   records=[];authorized=false;generation++;if(timer)clearInterval(timer);timer=null;
-  if(channel){client.removeChannel(channel);channel=null;}
   $('workspace').hidden=true;$('rows').replaceChildren();text('recordDetail','');text('connection','');
   for (const id of ['kTotal','kComplete','kExit']) text(id,'0'); text('kAttention','—'); text('rowCount','');
   for(const c of Object.values(charts)){for(const ds of c.data.datasets)ds.data=[];c.update();}
 }
+function forgetAccess(notice) {
+  clearData(); managementToken = '';
+  try { localStorage.removeItem(ACCESS_KEY); } catch (_) {}
+  $('accessPanel').hidden=false; $('forget').hidden=true;
+  message(notice || 'Access forgotten on this browser. Reopen your private entry file to return. / 已清除此浏览器的管理权限；再次使用时请打开专属入口文件。');
+}
 async function loadRecords(){
-  if(!authorized)return;
+  if(!managementToken)return;
   if(refreshing){rerun=true;return;} refreshing=true;const gen=generation;
   try{
-    const access=await client.rpc('researcher_access');
-    if(gen!==generation)return;
-    if(access.error||access.data!==true){clearData();message('This account is not authorized to read study data. / 此账号未获研究数据读取权限。',true);return;}
-    const all=[];let offset=0;
-    while(true){const {data,error}=await client.from('responses').select('participant_id,received_at,receipt_id,payload').order('received_at',{ascending:false}).order('participant_id').range(offset,offset+499);
-      if(error)throw error;if(gen!==generation)return;all.push(...data);if(data.length<500)break;offset+=500;
+    const all=[];let offset=0;let refreshedAt=null;
+    while(true){
+      const response=await fetch(CONFIG.url+'/rest/v1/rpc/read_dashboard',{
+        method:'POST',headers:{'Content-Type':'application/json',apikey:CONFIG.key},
+        body:JSON.stringify({management_token:managementToken,page_offset:offset}),
+        cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer',signal:AbortSignal.timeout(20000)
+      });
+      if(gen!==generation)return;
+      if(response.status===401||response.status===403){forgetAccess('This private entry is invalid or has been revoked. Reopen the current private entry file. / 此专属入口无效或已停用，请打开最新的专属入口文件。');return;}
+      if(!response.ok)throw new Error('Refresh unavailable');
+      const result=await response.json();
+      if(result.ok!==true||!Array.isArray(result.records))throw new Error('Invalid dashboard response');
+      if(gen!==generation)return;
+      all.push(...result.records);refreshedAt=result.refreshed_at;
+      if(result.records.length<500)break;offset+=500;
     }
     if(gen!==generation)return;
+    authorized=true;$('workspace').hidden=false;$('accessPanel').hidden=true;$('forget').hidden=false;
     records=Array.from(new Map(all.map(r=>[r.participant_id,r])).values());render();
-    text('connection',`Last confirmed refresh: ${time(new Date())} / 最近确认刷新时间`);message('');
-  }catch(e){if(gen===generation)message('Refresh failed; the displayed records may be stale. / 刷新失败；显示的记录可能不是最新。',true);}
+    text('connection',`Auto-refresh every 5 seconds · Last confirmed refresh: ${time(refreshedAt || new Date())} / 每5秒自动刷新 · 最近确认刷新时间`);message('');
+  }catch(e){if(gen===generation)message('Refresh failed; retrying automatically. Displayed records may be stale. / 刷新失败，将自动重试；显示的记录可能不是最新。',true);}
   finally{refreshing=false;if(rerun){rerun=false;loadRecords();}}
-}
-async function sessionChanged(session){
-  clearData();const gen=generation;$('logout').hidden=!session;$('loginPanel').hidden=!!session;
-  if(!session){message('Sign in to view live study data. / 登录后查看实时研究数据。');return;}
-  message('Checking researcher authorization… / 正在验证研究者权限……');
-  const {data,error}=await client.rpc('researcher_access');if(gen!==generation)return;
-  if(error||data!==true){message('Signed in, but this account is not authorized. Ask the project owner to add this account UUID to the researcher allowlist. / 已登录，但此账号尚未授权。请项目所有者将此账号 UUID 加入研究者名单。',true);return;}
-  authorized=true;$('workspace').hidden=false;
-  channel=client.channel('researcher-responses').on('postgres_changes',{event:'INSERT',schema:'public',table:'responses'},()=>loadRecords()).subscribe(status=>{
-    if(gen!==generation)return;
-    if(status==='SUBSCRIBED')loadRecords();
-    else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT')message('Realtime disconnected; automatic refresh continues every 15 seconds. / 实时连接中断；仍每15秒自动刷新。',true);
-  });
-  await loadRecords();if(gen===generation&&authorized)timer=setInterval(loadRecords,15000);
 }
 function exportRecords(format){
   if(!authorized)return;
@@ -105,12 +119,21 @@ function exportRecords(format){
   const url=URL.createObjectURL(new Blob([content],{type:format==='json'?'application/json':'text/csv;charset=utf-8'}));const link=document.createElement('a');link.href=url;link.download=`thht_${day(new Date())}.${format}`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 function init(){
-  initCharts();if(!window.supabase){message('Login service could not load. Reload this page. / 登录服务未能加载，请刷新页面。',true);return;}
-  client=supabase.createClient(CONFIG.url,CONFIG.key,{auth:{storageKey:'thht_researcher_auth',detectSessionInUrl:false}});
-  $('loginForm').onsubmit=async e=>{e.preventDefault();$('loginButton').disabled=true;message('Signing in… / 正在登录……');try{const {error}=await client.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error)message('Sign-in failed. Check the account and password, or contact the project owner. / 登录失败，请检查账号密码或联系项目所有者。',true);}finally{$('password').value='';$('loginButton').disabled=false;}};
-  $('logout').onclick=async()=>{clearData();await client.auth.signOut({scope:'local'});};
+  initCharts();
+  $('forget').onclick=()=>forgetAccess();
   $('refresh').onclick=loadRecords;$('condition').onchange=render;$('search').oninput=render;$('csv').onclick=()=>exportRecords('csv');$('json').onclick=()=>exportRecords('json');
-  // Schedule outside the auth callback to avoid a supabase-js auth lock deadlock.
-  client.auth.onAuthStateChange((event,session)=>{if(event!=='TOKEN_REFRESHED')setTimeout(()=>sessionChanged(session),0);});
+  if(managementToken){
+    $('accessPanel').hidden=true;$('forget').hidden=false;
+    message('Opening your statistics panel… / 正在打开您的统计面板……');
+    timer=setInterval(loadRecords,REFRESH_MS);loadRecords();
+  }else{
+    message('Open your private management entry file to view study data. No account is required. / 请打开专属管理入口文件查看研究数据，无需账号。');
+  }
+  window.addEventListener('storage',event=>{
+    if(event.key===ACCESS_KEY&&managementToken&&event.newValue!==managementToken){
+      clearData();managementToken='';$('accessPanel').hidden=false;$('forget').hidden=true;
+      message('Management access changed in another tab. Reopen your private entry file. / 其他标签页已更改管理权限，请重新打开专属入口文件。');
+    }
+  });
 }
 init();

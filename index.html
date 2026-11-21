@@ -1,20 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://dhoelfaebggvzubxinxr.supabase.co wss://dhoelfaebggvzubxinxr.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://dhoelfaebggvzubxinxr.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none'">
 <link rel="icon" href="data:,"><title>THHT Study: Researcher Dashboard</title>
 <link rel="stylesheet" href="dashboard.css">
-<script defer src="vendor/supabase.js"></script><script defer src="vendor/chart.umd.min.js"></script><script defer src="dashboard.js"></script>
+<script defer src="vendor/chart.umd.min.js"></script><script defer src="dashboard.js"></script>
 </head>
 <body>
-<header><div><h1>Researcher statistics panel<span class="zh" lang="zh-Hans">研究者统计面板</span></h1><p class="muted">AI-Generated Short Videos and Online Decision-Making Study<span class="zh">AI生成短视频与在线决策研究</span></p></div><button id="logout" hidden>Sign out<span class="zh">退出登录</span></button></header>
+<header><div><h1>Researcher statistics panel<span class="zh" lang="zh-Hans">研究者统计面板</span></h1><p class="muted">AI-Generated Short Videos and Online Decision-Making Study<span class="zh">AI生成短视频与在线决策研究</span></p></div><button id="forget" hidden>Forget this browser<span class="zh">清除此浏览器的管理权限</span></button></header>
 <main>
-<section id="loginPanel" class="panel narrow">
-<h2>Researcher sign-in<span class="zh">研究者登录</span></h2>
-<p>Only explicitly authorized researcher accounts can read responses. No participant data are public.<span class="zh">仅已获明确授权的研究者账号可查看作答。参与者数据不公开。</span></p>
-<form id="loginForm"><label>Email<span class="zh">邮箱</span><input id="email" type="email" autocomplete="username" required></label><label>Password<span class="zh">密码</span><input id="password" type="password" autocomplete="current-password" required></label><button type="submit" id="loginButton">Sign in<span class="zh">登录</span></button></form>
-<p class="muted small">The account must first be created and authorized by the project owner in Supabase. There is no public researcher registration.<span class="zh">账号须先由项目所有者在 Supabase 中创建并授权。研究者账号不开放注册。</span></p>
+<section id="accessPanel" class="panel narrow">
+<h2>Private management entry<span class="zh">专属管理入口</span></h2>
+<p>No account or password is needed. Open your private management entry file and select “Open my statistics panel”. This browser will remember your access.<span class="zh">无需注册或填写账号密码。请打开您的专属管理入口文件，点击“打开我的统计面板”。本浏览器会记住管理权限。</span></p>
+<p class="muted small">The public website address alone does not grant data access. Anyone holding the private entry file or its management link can view and export responses. Keep it private and do not send it to participants.<span class="zh">仅凭公开网址不能读取数据。拿到专属入口文件或其中管理链接的人能够查看、导出作答，请妥善保管，不要发给被试。</span></p>
 </section>
 <p id="message" role="status" aria-live="polite"></p>
 <div id="workspace" hidden>

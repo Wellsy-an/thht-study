@@ -19,20 +19,19 @@
 - Dashboard UI tests (synthetic mocked Auth/data transport, **not a real researcher login**): eight
   charts, accurate flat-v7 scores, UTC+8 date grouping, null group means, filters, CSV export,
   INSERT callback refresh, revocation/logout clearing, desktop and mobile.
-- Database performance advisor: no findings. Security advisor: only the two intentional INFO-level
-  notices for RLS with no client policy on private.researchers and private.submission_keys. Those
+- Database performance advisor: no findings. Security advisor: only intentional INFO-level
+  notices for RLS with no client policy on the private researcher/key/capability tables. Those
   tables are deliberately inaccessible to clients; privileged functions alone touch them.
   Reference: https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy
 
-## Remaining before recruitment
+## No-account management access (later update)
 
-The actual intended researcher account is not known and no UUID is allowlisted. The site safely
-shows a researcher login/authorization boundary, not public data. Establish that account with the
-owner, authorize its verified UUID, then verify password login, authenticated HTTPS SELECT, and
-actual authenticated websocket INSERT delivery end-to-end. The code uses Postgres Changes with
-RLS and a 15-second refresh fallback, but a real researcher websocket login cannot be truthfully
-claimed tested until that account exists. Network tests use the box network, not the offline user's
-computer or the actual participant networks.
+The account requirement was removed at the owner's request. The existing Auth allowlist remains
+unused. A separately delivered private file opens a hash-verified, scoped, read-only management
+RPC; no global public read policy was introduced. The raw capability is not in source or the zip.
+The protected panel polls every 5 seconds, labels the last confirmed refresh, remembers only the
+capability in the browser, and clears its URL fragment immediately. Raw response rows are not cached
+in localStorage and protected HTTP responses are marked private/no-store.
 
 ## Attention key correction (2026-11-21, later the same evening, Asia/Shanghai UTC+8)
 
@@ -41,3 +40,24 @@ Question wording, option order, and other participant content are unchanged. Ser
 recomputes attention_pass from the first response. Previous protocol/attention version labels
 are still accepted so in-flight retries keep a stable receipt. At the time of the correction,
 there were 0 stored responses, so no existing records needed derived-score revision.
+
+## Attention bilingual display protection
+
+The published raw source and native headless-browser DOM were already English followed by Chinese,
+including Banana/Tomato/Peach/Blueberry and the four Chinese translations. The reported duplicate-
+Chinese display was not reproduced in the native test browser; its exact client-side cause is not
+established. Scoped `translate="no"`, `notranslate`, and language spans were added only to the attention
+question/options. No site-wide auto-translation or questionnaire rewriting was applied. Desktop/mobile
+native rendered English/Chinese lines and the unchanged Tomato key are tested separately.
+
+## Capability access verification
+
+Actual HTTPS tests (not Auth mocks) verified valid private-capability reads, invalid/empty denial,
+anonymous direct-table read/write denial, and refusal of write-shaped calls to the read-only RPC.
+A file:// launcher opened the protected dashboard on desktop and mobile; the fragment was cleared,
+plain-root refresh reused only the remembered capability, and forgetting access cleared it and the
+rendered records. An actual synthetic completed participant submission updated the open dashboard
+rows, KPIs, and line chart automatically on the next five-second poll (observed 3.0 seconds in the
+local panel test). The participant browser was isolated from the researcher browser. No raw response
+records were cached by the dashboard in localStorage. Full desktop/mobile study regression passed.
+The same private-capability flow must also be checked against the published panel before handover.

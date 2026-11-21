@@ -488,7 +488,7 @@
   <p class="step-kicker">Step 3 of 10<span class="zh" lang="zh-Hans">第 3 步，共 10 步</span></p>
   <h1 id="h-step3" tabindex="-1">A Question About the Video<span class="zh" lang="zh-Hans">关于视频的问题</span></h1>
   <fieldset class="question">
-    <legend><span class="q-num">1.</span><span id="attnQuestion">What kind of fruit is wearing a wedding dress in the video?<span class="zh" lang="zh-Hans">视频中穿婚纱的是哪一种水果？</span></span><span class="req" aria-hidden="true">*</span></legend>
+    <legend><span class="q-num">1.</span><span id="attnQuestion" class="notranslate" translate="no"><span lang="en" translate="no">What kind of fruit is wearing a wedding dress in the video?</span><span class="zh" lang="zh-Hans" translate="no">视频中穿婚纱的是哪一种水果？</span></span><span class="req" aria-hidden="true">*</span></legend>
     <div class="options" id="objectOptions"><!-- rendered from the assigned video's attention config --></div>
   </fieldset>
   <div class="actions">
@@ -1070,7 +1070,10 @@ function renderOptions(container, name, options, setter) {
   options.forEach(opt => {
     const lbl = document.createElement('label');
     lbl.className = 'option';
-    lbl.innerHTML = '<input type="radio" name="' + name + '" value="' + opt.id + '"><span>' + bi(opt.label, opt.zh) + '</span>';
+    const labelMarkup = container.id === 'objectOptions'
+      ? '<span class="notranslate" translate="no"><span lang="en" translate="no">' + opt.label + '</span><span class="zh" lang="zh-Hans" translate="no">' + opt.zh + '</span></span>'
+      : '<span>' + bi(opt.label, opt.zh) + '</span>';
+    lbl.innerHTML = '<input type="radio" name="' + name + '" value="' + opt.id + '">' + labelMarkup;
     lbl.querySelector('input').addEventListener('change', () => setter(opt.id));
     container.appendChild(lbl);
   });
