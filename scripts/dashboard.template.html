@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' __SCRIPT_HASH__; style-src 'self' 'unsafe-inline'; connect-src 'self' https://dhoelfaebggvzubxinxr.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none'">
+<link rel="icon" href="data:,"><title>THHT Study: Researcher Dashboard</title>
+<style>__DASHBOARD_CSS__</style>
+</head>
+<body>
+<header><div><h1>Researcher statistics panel<span class="zh" lang="zh-Hans">研究者统计面板</span></h1><p class="muted">AI-Generated Short Videos and Online Decision-Making Study<span class="zh">AI生成短视频与在线决策研究</span></p></div><button id="forget" hidden>Forget this browser<span class="zh">清除此浏览器的管理权限</span></button></header>
+<main>
+<section id="startupNotice" class="panel" role="status"><h2>Opening the statistics panel…<span class="zh">正在打开统计面板……</span></h2><p>If this message stays on screen, refresh or open this website in Chrome, Edge or Safari instead of an in-app browser. No account is needed.<span class="zh">如果一直停在这里，请刷新，或用 Chrome、Edge、Safari 浏览器打开，不要在聊天软件内打开；无需账号。</span></p><noscript>JavaScript is disabled. Enable it to view the panel. / 请启用 JavaScript 后查看面板。</noscript></section>
+<section id="accessPanel" class="panel narrow">
+<h2>Private management entry<span class="zh">专属管理入口</span></h2>
+<p>No account or password is needed. Open your private management entry file and select “Open my statistics panel”. This browser will remember your access.<span class="zh">无需注册或填写账号密码。请打开您的专属管理入口文件，点击“打开我的统计面板”。本浏览器会记住管理权限。</span></p>
+<p class="muted small">The public website address alone does not grant data access. Anyone holding the private entry file or its management link can view and export responses. Keep it private and do not send it to participants.<span class="zh">仅凭公开网址不能读取数据。拿到专属入口文件或其中管理链接的人能够查看、导出作答，请妥善保管，不要发给被试。</span></p>
+</section>
+<p id="message" role="status" aria-live="polite"></p><button id="retry" type="button" hidden>Retry<span class="zh">重试</span></button>
+<div id="workspace" hidden>
+<p id="emptyState" class="panel" hidden>No responses received yet. Completed responses will appear here automatically.<span class="zh">目前尚未收到作答。被试完成提交后，记录会在此自动出现。</span></p>
+<section class="panel controls"><label>Condition<span class="zh">实验条件</span><select id="condition"><option value="all">All / 全部</option><option value="fruit_violent">Violent / 暴力</option><option value="fruit_nonviolent">Non-violent / 非暴力</option></select></label><label>Search ID<span class="zh">搜索编号</span><input id="search" type="search"></label><button id="refresh">Refresh<span class="zh">刷新</span></button><button id="csv">Export CSV<span class="zh">导出 CSV</span></button><button id="json">Export JSON<span class="zh">导出 JSON</span></button><p id="connection" role="status"></p></section>
+<div class="kpis"><section class="panel"><h2>Received<span class="zh">收到记录</span></h2><strong id="kTotal">0</strong></section><section class="panel"><h2>Completed<span class="zh">完成作答</span></h2><strong id="kComplete">0</strong></section><section class="panel"><h2>Attention passed<span class="zh">注意力题通过</span></h2><strong id="kAttention">—</strong></section><section class="panel"><h2>Mid-study exits<span class="zh">中途退出</span></h2><strong id="kExit">0</strong></section></div>
+<p class="muted small">Real records only. Charts use completed sessions; attention failures are flagged, not silently excluded. Empty groups show no value, not zero. Times: Asia/Shanghai (UTC+8). Exports follow the condition and ID filters.<span class="zh">仅显示真实记录。图表统计已完成作答；注意力题未通过的记录会标记，不会自动排除。无数据的分组显示空值，不作零值处理。时间：上海时间（UTC+8）。导出遵循实验条件和编号筛选。</span></p>
+<p id="chartLoading" class="muted" role="status">Loading charts; records and exports are already available.<span class="zh">正在加载图表；明细和导出可先使用。</span></p>
+<p id="chartError" class="error" hidden>Charts unavailable; table and exports remain available.<span class="zh">图表暂不可用；明细和导出仍可使用。</span></p>
+<section class="charts" id="charts" hidden>
+<article class="panel"><h2>Completed per day & cumulative<span class="zh">每日完成数与累计完成数</span></h2><div class="chart"><canvas id="daily" aria-label="Daily and cumulative completions line chart" role="img"></canvas></div></article>
+<article class="panel"><h2>THHT scores by condition<span class="zh">各条件 THHT 平均分</span></h2><div class="chart"><canvas id="thht" role="img" aria-label="THHT grouped bar chart"></canvas></div><p class="small muted">Help=max(0,easy−1); Hurt=max(0,hard−1); Difference=Help−Hurt.<span class="zh">帮助=max(0,简单−1)；伤害=max(0,困难−1)；差异=帮助−伤害。</span></p></article>
+<article class="panel"><h2>Current mood & perceived violence<span class="zh">当前感受与感知暴力程度</span></h2><div class="chart"><canvas id="ratings" role="img" aria-label="Mood and perceived violence by condition"></canvas></div><p class="small muted">Both scales 1–5; SHS items 2,4,6,8 reverse-scored (6−x).<span class="zh">均为1–5分；SHS第2、4、6、8题反向计分（6−x）。</span></p></article>
+<article class="panel"><h2>THHT difference distribution<span class="zh">THHT 差异分分布</span></h2><div class="chart"><canvas id="distribution" role="img" aria-label="Difference histogram"></canvas></div></article>
+<article class="panel"><h2>Puzzle difficulty share<span class="zh">所选题目难度占比</span></h2><div class="chart"><canvas id="difficulty" role="img" aria-label="Selected puzzle difficulty doughnut"></canvas></div></article>
+<article class="panel"><h2>Attention check by condition<span class="zh">各条件注意力题结果</span></h2><div class="chart"><canvas id="attention" role="img" aria-label="Attention pass and fail bar chart"></canvas></div></article>
+<article class="panel"><h2>Believed another participant<span class="zh">是否相信存在另一名参与者</span></h2><div class="chart"><canvas id="belief" role="img" aria-label="Belief responses bar chart"></canvas></div></article>
+<article class="panel"><h2>Daily short-video time<span class="zh">每日短视频观看时长</span></h2><div class="chart"><canvas id="videoTime" role="img" aria-label="Daily viewing duration bar chart"></canvas></div></article>
+</section>
+<section class="panel"><h2>Individual records<span class="zh">逐份作答记录</span></h2><p class="small muted">Select an ID to inspect all recorded fields. In-progress sessions are not sent; only completion or a confirmed mid-study exit creates a record.<span class="zh">点击编号查看全部记录字段。进行中的作答不会上传；仅完成或确认中途退出时产生一条记录。</span></p><div class="table-wrap"><table><thead><tr><th>ID / 编号</th><th>Received (UTC+8) / 收到时间</th><th>Condition / 条件</th><th>Status / 状态</th><th>Attention / 注意力</th><th>Easy/Med/Hard / 简中难</th><th>Help/Hurt/Diff / 帮伤差</th><th>SHS</th><th>Violence / 暴力</th><th>Age / 年龄</th></tr></thead><tbody id="rows"></tbody></table></div><p id="rowCount"></p><details id="detail"><summary>Selected record / 所选记录</summary><pre id="recordDetail"></pre></details></section>
+</div>
+</main><footer>THHT study · Private researcher data · Asia/Shanghai (UTC+8)<span class="zh">THHT研究 · 研究者私有数据 · 上海时间（UTC+8）</span></footer>
+<script id="chartLibrary" async src="vendor/chart.umd.min.js"></script>
+<script>__DASHBOARD_JS__</script>
+</body></html>

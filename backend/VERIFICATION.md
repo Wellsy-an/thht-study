@@ -61,3 +61,20 @@ rows, KPIs, and line chart automatically on the next five-second poll (observed 
 local panel test). The participant browser was isolated from the researcher browser. No raw response
 records were cached by the dashboard in localStorage. Full desktop/mobile study regression passed.
 The same private-capability flow must also be checked against the published panel before handover.
+
+
+## Dashboard nonblank startup (2026-11-22, Asia/Shanghai)
+
+The original live private launcher opened the dashboard in clean desktop and mobile Chromium
+without errors. Therefore the user's exact browser/network failure is not established. Controlled
+reproductions did identify two real failure paths: a chart constructor error stopped initialization
+before the panel opened, and an absent `AbortSignal.timeout` prevented every API request. A failed
+API request also hid the main panel with only an easy-to-miss generic stale-data warning.
+
+The dashboard now embeds critical CSS/application code with an exact CSP script hash; optional
+Chart.js loads asynchronously and cannot prevent the records/table/export path. Chart construction
+and update failures are contained. A mobile-compatible request timeout replaces the newer browser
+API requirement; daily chart keys are assembled in a locale-independent UTC+8 format. Explicit
+startup guidance, connection failure/retry and zero-response states remain visible. No experiment,
+question, scoring, database, capability or launcher change is included. Failure-injection tests use
+only offline mock records; live diagnosis is read-only and creates/deletes no production records.

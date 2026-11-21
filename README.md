@@ -70,12 +70,21 @@ Use a Python environment with Playwright and Chromium:
 
 - `python tests/test_flow_production.py` — full desktop/mobile preview regression (real video playback).
 - `python tests/test_dashboard.py` — synthetic, offline dashboard UI/chart/access-state tests.
+- `python tests/test_dashboard_startup.py` — offline desktop/mobile nonblank-startup, legacy-browser, storage-denial, blocked/slow/broken-chart, network failure/retry, timeout and empty-state regressions.
 - `python tests/test_attention_bilingual.py` — desktop/mobile English/Chinese attention text and scoped translation protection.
 - `python tests/test_capability.py` — actual private API + local file entry + browser automatic-update test; requires the separately stored private entry and writes a clearly tagged synthetic row. Clean up only its exact manifest UUID afterward.
 - `python tests/test_production_integration.py` — writes tagged synthetic records to the real project;
   run only before recruitment or with explicit test authorization. It writes an exact ID manifest under
   `/workspace/thht/production-test-records.json`; remove only those test IDs via a privileged connection
   after checking the manifest. Do not remove real data or run indiscriminate truncate/delete statements.
+
+The two dashboard HTML entry pages embed their critical CSS and application JavaScript, protected
+by an exact CSP script hash. After editing `dashboard.js`, `dashboard.css` or
+`scripts/dashboard.template.html`, run `python scripts/build_dashboard.py` to regenerate both pages.
+Chart.js loads asynchronously and is optional: a slow, blocked or broken chart renderer cannot
+prevent data access, the individual-record table, or exports. Startup, empty-data and connection
+failure states provide explicit instructions instead of hiding the whole panel. Requests use a
+compatible abort/timer fallback rather than requiring `AbortSignal.timeout`.
 
 Chart.js 4.4.1 is loaded locally; no third-party script CDN is needed at runtime. The previously
 vendored supabase-js bundle remains unused. See `vendor/NOTICE.md` and bundled MIT license notices.
