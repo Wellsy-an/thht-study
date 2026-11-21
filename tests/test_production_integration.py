@@ -93,10 +93,10 @@ with sync_playwright() as pw:
     assert writes==[]
     print('PASS browser preview has no writes',flush=True)
     # Root is a login-only researcher panel. No experiment/prototype navigation.
-    root=browser.new_page();root.goto(BASE+'/');root.wait_for_selector('#loginPanel')
-    assert root.is_visible('#loginPanel') and not root.is_visible('#workspace')
+    root=browser.new_page();root.goto(BASE+'/');root.wait_for_selector('#accessPanel')
+    assert root.is_visible('#accessPanel') and not root.is_visible('#workspace')
     assert root.locator('a[href*="experiment"]').count()==0
     assert root.locator('#rows tr').count()==0
-    print('PASS root opens researcher login directly; no public data or version choice',flush=True)
+    print('PASS root opens private management entry directly; no public data or version choice',flush=True)
     root.screenshot(path='/workspace/thht/shots/production-login.png',full_page=True)
     browser.close()
