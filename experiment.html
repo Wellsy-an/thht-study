@@ -7,7 +7,7 @@
 <!--
   =====================================================================
   THHT ONLINE EXPERIMENT PROTOTYPE - BILINGUAL (English + Chinese)
-  (single file; backend = STUDY_CONFIG.submitEndpoint, still missing)
+  (single file; backend = STUDY_CONFIG.submitEndpoint)
   ---------------------------------------------------------------------
   Purpose : Simulates a participant's first encounter with the
             Tangram Help/Hurt Task (THHT) inside a complete online
@@ -488,7 +488,7 @@
   <p class="step-kicker">Step 3 of 10<span class="zh" lang="zh-Hans">第 3 步，共 10 步</span></p>
   <h1 id="h-step3" tabindex="-1">A Question About the Video<span class="zh" lang="zh-Hans">关于视频的问题</span></h1>
   <fieldset class="question">
-    <legend><span class="q-num">1.</span><span id="attnQuestion">What color is the suit that the banana is wearing in the video?<span class="zh" lang="zh-Hans">视频中香蕉穿的西装是什么颜色？</span></span><span class="req" aria-hidden="true">*</span></legend>
+    <legend><span class="q-num">1.</span><span id="attnQuestion">What kind of fruit is wearing a wedding dress in the video?<span class="zh" lang="zh-Hans">视频中穿婚纱的是哪一种水果？</span></span><span class="req" aria-hidden="true">*</span></legend>
     <div class="options" id="objectOptions"><!-- rendered from the assigned video's attention config --></div>
   </fieldset>
   <div class="actions">
@@ -720,12 +720,14 @@
    ===================================================================== */
 const STUDY_CONFIG = {
   study_id: 'thht_ai_video',
-  protocol_version: 'thht-online-v7',
+  protocol_version: 'thht-online-v7-peach-20261121',
   shs_version: 'shs8-adapted-v1',
 
   /* OPTIONAL: HTTPS endpoint that accepts a JSON POST of one record and
      answers 2xx only after the record is stored. null = no backend. */
-  submitEndpoint: null,
+  submitEndpoint: 'https://dhoelfaebggvzubxinxr.supabase.co/rest/v1/rpc/submit_thht',
+  publishableKey: 'sb_publishable_cCqUEf5-mKanatsYMlrDyw_sD4VEA_R',
+  attention_version: 'wedding-fruit-peach-v1',
 
   /* Watch requirement: the video must fire "ended" AND the actually played
      time must be >= minWatchFraction x duration. */
@@ -736,20 +738,20 @@ const STUDY_CONFIG = {
      localStorage so a refresh never reassigns).
      REQUIRED per condition: video_id and src (real video URL).
      src is relative, so the page also works from a downloaded folder.
-     The attention answer (banana's suit = black) is shared by both versions. */
+     The user-confirmed attention answer (Peach / 桃子) is shared by both versions. */
   videos: {
-    fruit_violent:    { video_id: 'fruit_violent_v1',    character_type: 'fruit', violence_condition: 'violent',    src: 'videos/fruit_violent.mp4',    poster: 'videos/fruit_violent.jpg',    mirror: 'https://cdn.jsdelivr.net/gh/Wellsy-an/thht-study@main/videos/fruit_violent.mp4',    attentionCorrectOptionId: 'black' },
-    fruit_nonviolent: { video_id: 'fruit_nonviolent_v1', character_type: 'fruit', violence_condition: 'nonviolent', src: 'videos/fruit_nonviolent.mp4', poster: 'videos/fruit_nonviolent.jpg', mirror: 'https://cdn.jsdelivr.net/gh/Wellsy-an/thht-study@main/videos/fruit_nonviolent.mp4', attentionCorrectOptionId: 'black' }
+    fruit_violent:    { video_id: 'fruit_violent_v1',    character_type: 'fruit', violence_condition: 'violent',    src: 'videos/fruit_violent.mp4',    poster: 'videos/fruit_violent.jpg',    mirror: 'https://cdn.jsdelivr.net/gh/Wellsy-an/thht-study@main/videos/fruit_violent.mp4',    attentionCorrectOptionId: 'peach' },
+    fruit_nonviolent: { video_id: 'fruit_nonviolent_v1', character_type: 'fruit', violence_condition: 'nonviolent', src: 'videos/fruit_nonviolent.mp4', poster: 'videos/fruit_nonviolent.jpg', mirror: 'https://cdn.jsdelivr.net/gh/Wellsy-an/thht-study@main/videos/fruit_nonviolent.mp4', attentionCorrectOptionId: 'peach' }
   },
   simulatedDurationSec: 18,        // preview-mode fallback only (used if a condition has no src)
 
   /* Neutral attention item (identical in both conditions):
-     "What color is the suit that the banana is wearing in the video?" */
+     "What kind of fruit is wearing a wedding dress in the video?" */
   attentionOptions: [
-    { id: 'black', label: 'Black', zh: '黑色' },
-    { id: 'white', label: 'White', zh: '白色' },
-    { id: 'blue',  label: 'Blue',  zh: '蓝色' },
-    { id: 'grey',  label: 'Grey',  zh: '灰色' }
+    { id: 'banana', label: 'Banana', zh: '香蕉' },
+    { id: 'tomato', label: 'Tomato', zh: '番茄' },
+    { id: 'peach', label: 'Peach', zh: '桃子' },
+    { id: 'blueberry', label: 'Blueberry', zh: '蓝莓' }
   ],
 
   /* REQUIRED: withdrawal promise shown in the debrief. Must match how data
@@ -941,7 +943,7 @@ const PUZZLES = (function buildPuzzles() {
    a refresh resumes the same session: same participant_id, same
    condition, no duplicate record)
    ===================================================================== */
-const STORAGE_KEY = PREVIEW ? 'thht_v7_preview_session' : 'thht_v7_session';
+const STORAGE_KEY = PREVIEW ? 'thht_v7_peach_preview_session' : 'thht_v7_peach_production_session';
 const CONDITION_KEYS = Object.keys(STUDY_CONFIG.videos);
 
 function newState() {
@@ -978,6 +980,13 @@ function loadState() {
   return newState();
 }
 const state = loadState();
+// A previous connection may have stopped after commit but before receipt delivery.
+// Preserve the immutable snapshot and token; retrying returns the same receipt.
+if (state.submission.status === 'uploading') state.submission.status = 'failed';
+if (!state.submission.token) {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  state.submission.token = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
 function saveState() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
 }
@@ -1534,6 +1543,7 @@ function buildResults(includeResponses) {
     participant_id: state.participantId,
     study_id: STUDY_CONFIG.study_id,
     protocol_version: STUDY_CONFIG.protocol_version,
+    attention_version: STUDY_CONFIG.attention_version,
     shs_version: STUDY_CONFIG.shs_version,
     preview_mode: PREVIEW,
     condition: state.condition,
@@ -1608,38 +1618,52 @@ function buildResults(includeResponses) {
 }
 
 let submitting = false;
-/* Sends the record once. Success is shown ONLY after a 2xx response from
-   STUDY_CONFIG.submitEndpoint. Without an endpoint the record is kept in
-   this browser only and the participant is told it was NOT uploaded. */
+/* Commit is confirmed only by an idempotent database receipt, never an opaque
+   response or optimistic local flag. The retry token stays in this browser. */
 async function submitResults(record) {
   if (submitting || state.submission.status === 'uploaded' || state.submission.status === 'local_only') return state.submission.status;
   submitting = true;
   state.submission.attempts++;
-  window.THHT_RESULTS = record;
   if (!STUDY_CONFIG.submitEndpoint || PREVIEW) {
     state.submission.status = 'local_only';
     record.submission_status = 'local_only';
-    state.lastRecord = record; saveState();
+    state.lastRecord = record; window.THHT_RESULTS = record; saveState();
     submitting = false;
     return 'local_only';
   }
+  if (!state.submission.pendingRecord) state.submission.pendingRecord = JSON.parse(JSON.stringify(record));
+  record = JSON.parse(JSON.stringify(state.submission.pendingRecord));
   state.submission.status = 'uploading'; saveState();
-  record.submission_status = 'uploaded';
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
   try {
     const res = await fetch(STUDY_CONFIG.submitEndpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(record)
+      headers: { 'Content-Type': 'application/json', 'apikey': STUDY_CONFIG.publishableKey },
+      body: JSON.stringify({ record: record, submission_token: state.submission.token }),
+      signal: controller.signal,
+      credentials: 'omit'
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
+    const receipt = await res.json();
+    if (receipt.ok !== true || receipt.participant_id !== state.participantId ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(receipt.receipt_id || '') || !Number.isFinite(Date.parse(receipt.received_at))) {
+      throw new Error('No valid storage receipt received');
+    }
+    state.submission.receipt = receipt;
     state.submission.status = 'uploaded';
-    state.submission.submittedAt = new Date().toISOString();
+    state.submission.submittedAt = receipt.received_at;
+    state.submission.lastError = null;
+    record.submission_status = 'uploaded';
   } catch (err) {
     state.submission.status = 'failed';
     state.submission.lastError = String(err && err.message || err);
+    record.submission_status = 'failed';
+  } finally {
+    clearTimeout(timeout);
+    state.lastRecord = record; window.THHT_RESULTS = record; saveState();
+    submitting = false;
   }
-  state.lastRecord = record; saveState();
-  submitting = false;
   return state.submission.status;
 }
 
@@ -1663,6 +1687,7 @@ function showSubmissionStatus(kind) {           // kind: 'keep' | 'withdraw' | '
   notice.hidden = false;
   if (kind !== 'header' && state.lastRecord) {
     $('resultsJson').textContent = JSON.stringify(state.lastRecord, null, 2);
+    $('resultsJson').hidden = !PREVIEW; // do not display analysis scores to participants
     $('resultsPanel').hidden = false;
   }
 }
