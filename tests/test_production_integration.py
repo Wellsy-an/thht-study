@@ -8,7 +8,7 @@ BASE=os.environ.get('THHT_TEST_BASE','http://127.0.0.1:8765').rstrip('/')
 OUT=Path('/workspace/thht/production-test-records.json')
 TEST_RUN='synthetic-'+str(uuid.uuid4())
 ids=json.loads(OUT.read_text()).get('participant_ids',[]) if OUT.exists() else []
-def seed(page, first='peach', final='tomato'):
+def seed(page, first='tomato', final='peach'):
     page.evaluate('''([first,final,run])=>{
       const now=new Date().toISOString();
       state.consent={age18:true,consent:true,timestamp:now};
@@ -38,7 +38,7 @@ with sync_playwright() as pw:
     d=snapshot(page)
     assert result['s']=='uploaded', page.evaluate('state.submission.lastError')
     assert result['receipt']['ok'] and result['receipt']['participant_id']==d['pid']
-    assert result['r']['attention_pass'] is True and result['r']['thht_difference']==-1 and result['r']['shs_mean']==2
+    assert result['r']['attention_response']=='tomato' and result['r']['attention_final_response']=='peach' and result['r']['attention_pass'] is True and result['r']['thht_difference']==-1 and result['r']['shs_mean']==2
     assert not page.is_visible('#resultsJson'), 'analysis scores hidden from participants'
     assert 'successfully uploaded' in page.inner_text('#decisionNotice') or 'have been uploaded' in page.inner_text('#decisionNotice')
     response=page.evaluate('''async d=>{
@@ -58,7 +58,7 @@ with sync_playwright() as pw:
     print('PASS actual HTTPS/CORS browser insert, durable receipt, 6 identical retries, token conflict, changed-answer conflict, preview server rejection, anon read denial, hidden scores',flush=True)
     page.reload();assert page.evaluate('state.submission.status')=='uploaded'
     # Success-looking HTTP 200 without a database receipt must not show upload success.
-    ctx2=browser.new_context();p2=ctx2.new_page();p2.goto(BASE+'/experiment.html');seed(p2,'banana','peach')
+    ctx2=browser.new_context();p2=ctx2.new_page();p2.goto(BASE+'/experiment.html');seed(p2,'peach','banana')
     p2.route('**/rest/v1/rpc/submit_thht',lambda route:route.fulfill(status=200,json={'ok':True}))
     r=p2.evaluate('async()=>{await submitResults(window.__testBuild());return state.lastRecord;}')
     assert r['submission_status']=='failed' and r['attention_pass'] is False
@@ -67,7 +67,7 @@ with sync_playwright() as pw:
     p2.reload()
     assert p2.is_visible('#btnRetryUpload')
     p2.click('#btnRetryUpload');p2.wait_for_function('state.submission.status==="uploaded"',timeout=35000)
-    d2=snapshot(p2);assert d2['record']['attention_response']=='banana'
+    d2=snapshot(p2);assert d2['record']['attention_response']=='peach' and d2['record']['attention_final_response']=='banana' and d2['record']['attention_pass'] is False
     print('PASS no false HTTP-200 success, failed local backup status, first answer scoring, retry after reload',flush=True)
     # Simulate committed write but lost receipt, then refresh and retry frozen snapshot.
     ctx3=browser.new_context();p3=ctx3.new_page();p3.goto(BASE+'/experiment.html');seed(p3)

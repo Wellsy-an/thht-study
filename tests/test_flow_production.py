@@ -70,7 +70,7 @@ def run_flow(b, viewport, shots_prefix, mobile=False):
     check(pg.inner_text('#attnQuestion') == 'What kind of fruit is wearing a wedding dress in the video?\n视频中穿婚纱的是哪一种水果？', 'approved bilingual question')
     check(pg.evaluate('STUDY_CONFIG.attentionOptions.map(o=>o.id)') == ['banana','tomato','peach','blueberry'], 'fruit options exact order')
     check(pg.locator('#instructedScale').count() == 0, 'instructed item removed')
-    pg.click('#objectOptions label:nth-child(3)'); pg.click('#objectOptions label:nth-child(2)')
+    pg.click('#objectOptions label:nth-child(2)'); pg.click('#objectOptions label:nth-child(3)')
     check(pg.is_enabled('#btnNext3'), 'attention Next enabled')
     pg.click('#btnNext3'); check(ind() == 'Step 4 of 10', 'step 4 instructions')
     t = pg.inner_text('section[data-step="4"]')
@@ -139,7 +139,7 @@ def run_flow(b, viewport, shots_prefix, mobile=False):
     check(r['thht_deselect_count'] == 1 and len(r['selection_order']) == 13, 'selection order + deselects')
     scored = [x if k % 2 == 0 else 6 - x for k, x in enumerate(answers)]
     check(abs(r['shs_mean'] - sum(scored) / 8) < 1e-6 and r['shs01'] == 1 and r['shs08'] == 4, f'SHS scoring {r["shs_mean"]}')
-    check(r['attention_response'] == 'peach' and r['attention_final_response'] == 'tomato' and r['attention_pass'] is True, 'first attention answer kept + scored')
+    check(r['attention_response'] == 'tomato' and r['attention_final_response'] == 'peach' and r['attention_pass'] is True, 'first attention answer kept + scored')
     check(r['character_type'] == 'fruit' and r['violence_condition'] in ('violent','nonviolent') and r['condition'] in ('fruit_violent','fruit_nonviolent'), 'two fruit conditions')
     check(r['perceived_violence'] == 2 and r['believed_other_participant'] == 'yes', 'violence + belief')
     check(r['age'] == 24 and r['gender'] == 'prefer_not' and r['ai_content_freq'] == 3, 'demographics')

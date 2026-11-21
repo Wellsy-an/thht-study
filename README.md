@@ -6,7 +6,7 @@
 The root opens the researcher sign-in screen directly, not a prototype/version menu.
 The bilingual participant flow, stimuli, puzzles, and questionnaires are unchanged;
 only the approved attention question and necessary collection/receipt handling changed.
-The confirmed attention key is **Peach / 桃子** (first response scored; final response also retained).
+The confirmed attention key is **Tomato / 番茄** (first response scored; final response also retained).
 
 ## Production data
 

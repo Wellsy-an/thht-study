@@ -720,14 +720,14 @@
    ===================================================================== */
 const STUDY_CONFIG = {
   study_id: 'thht_ai_video',
-  protocol_version: 'thht-online-v7-peach-20261121',
+  protocol_version: 'thht-online-v7-tomato-20261121',
   shs_version: 'shs8-adapted-v1',
 
   /* OPTIONAL: HTTPS endpoint that accepts a JSON POST of one record and
      answers 2xx only after the record is stored. null = no backend. */
   submitEndpoint: 'https://dhoelfaebggvzubxinxr.supabase.co/rest/v1/rpc/submit_thht',
   publishableKey: 'sb_publishable_cCqUEf5-mKanatsYMlrDyw_sD4VEA_R',
-  attention_version: 'wedding-fruit-peach-v1',
+  attention_version: 'wedding-fruit-tomato-v1',
 
   /* Watch requirement: the video must fire "ended" AND the actually played
      time must be >= minWatchFraction x duration. */
@@ -738,10 +738,10 @@ const STUDY_CONFIG = {
      localStorage so a refresh never reassigns).
      REQUIRED per condition: video_id and src (real video URL).
      src is relative, so the page also works from a downloaded folder.
-     The user-confirmed attention answer (Peach / 桃子) is shared by both versions. */
+     The user-confirmed attention answer (Tomato / 番茄) is shared by both versions. */
   videos: {
-    fruit_violent:    { video_id: 'fruit_violent_v1',    character_type: 'fruit', violence_condition: 'violent',    src: 'videos/fruit_violent.mp4',    poster: 'videos/fruit_violent.jpg',    mirror: 'https://cdn.jsdelivr.net/gh/Wellsy-an/thht-study@main/videos/fruit_violent.mp4',    attentionCorrectOptionId: 'peach' },
-    fruit_nonviolent: { video_id: 'fruit_nonviolent_v1', character_type: 'fruit', violence_condition: 'nonviolent', src: 'videos/fruit_nonviolent.mp4', poster: 'videos/fruit_nonviolent.jpg', mirror: 'https://cdn.jsdelivr.net/gh/Wellsy-an/thht-study@main/videos/fruit_nonviolent.mp4', attentionCorrectOptionId: 'peach' }
+    fruit_violent:    { video_id: 'fruit_violent_v1',    character_type: 'fruit', violence_condition: 'violent',    src: 'videos/fruit_violent.mp4',    poster: 'videos/fruit_violent.jpg',    mirror: 'https://cdn.jsdelivr.net/gh/Wellsy-an/thht-study@main/videos/fruit_violent.mp4',    attentionCorrectOptionId: 'tomato' },
+    fruit_nonviolent: { video_id: 'fruit_nonviolent_v1', character_type: 'fruit', violence_condition: 'nonviolent', src: 'videos/fruit_nonviolent.mp4', poster: 'videos/fruit_nonviolent.jpg', mirror: 'https://cdn.jsdelivr.net/gh/Wellsy-an/thht-study@main/videos/fruit_nonviolent.mp4', attentionCorrectOptionId: 'tomato' }
   },
   simulatedDurationSec: 18,        // preview-mode fallback only (used if a condition has no src)
 
