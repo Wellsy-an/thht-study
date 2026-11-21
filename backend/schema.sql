@@ -51,8 +51,8 @@ begin
     raise exception 'Invalid submission' using errcode='22023';
   end if;
   if record->>'study_id' is distinct from 'thht_ai_video'
-     or record->>'protocol_version' is distinct from 'thht-online-v7-peach-20261121'
-     or record->>'attention_version' is distinct from 'wedding-fruit-peach-v1'
+     or coalesce(record->>'protocol_version','') not in ('thht-online-v7-tomato-20261121','thht-online-v7-peach-20261121')
+     or coalesce(record->>'attention_version','') not in ('wedding-fruit-tomato-v1','wedding-fruit-peach-v1')
      or record->>'preview_mode' is distinct from 'false'
      or record->>'consent' is distinct from 'true' or record->>'age_eligible' is distinct from 'true'
      or coalesce(record->>'condition','') not in ('fruit_violent','fruit_nonviolent') then
@@ -92,7 +92,7 @@ begin
     end loop;
     if record->>'finish_time' is null or record->>'start_time' is null then raise exception 'Missing time' using errcode='22023'; end if;
     perform (record->>'finish_time')::timestamptz, (record->>'start_time')::timestamptz;
-    clean := clean || jsonb_build_object('attention_pass',record->>'attention_response'='peach',
+    clean := clean || jsonb_build_object('attention_pass',record->>'attention_response'='tomato',
       'thht_easy_count',easy,'thht_medium_count',11-easy-hard,'thht_hard_count',hard,
       'thht_help',greatest(0,easy-1),'thht_hurt',greatest(0,hard-1),
       'thht_difference',greatest(0,easy-1)-greatest(0,hard-1),

@@ -9,7 +9,7 @@
   identical submissions return the same receipt; changed payload or wrong retry token is rejected;
   a lost receipt after commit recovers on refresh and retry; only one row remains per UUID.
 - Actual preview: no requests from browser; preview=true payloads are rejected by the server.
-- Actual server scoring checked: THHT help/hurt/difference, first-answer Peach attention key, SHS
+- Actual server scoring checked: THHT help/hurt/difference, first-answer Tomato attention key, SHS
   mean; answers are stripped from mid-study exit rows.
 - Actual anonymous API calls cannot read responses, write tables directly, call researcher access,
   or select the unexposed private schema.
@@ -33,3 +33,11 @@ actual authenticated websocket INSERT delivery end-to-end. The code uses Postgre
 RLS and a 15-second refresh fallback, but a real researcher websocket login cannot be truthfully
 claimed tested until that account exists. Network tests use the box network, not the offline user's
 computer or the actual participant networks.
+
+## Attention key correction (2026-11-21, later the same evening, Asia/Shanghai UTC+8)
+
+User superseded the earlier Peach key. The live scoring key is Tomato / 番茄 for both conditions.
+Question wording, option order, and other participant content are unchanged. Server scoring
+recomputes attention_pass from the first response. Previous protocol/attention version labels
+are still accepted so in-flight retries keep a stable receipt. At the time of the correction,
+there were 0 stored responses, so no existing records needed derived-score revision.
