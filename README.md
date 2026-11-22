@@ -63,6 +63,42 @@ created. Test access from the actual participant networks before recruitment; Gi
 from mainland China may differ from the development network. Arrange an independent data backup
 and retention/access policy before real recruitment.
 
+## Participant upload compatibility and support (2026-11-22)
+
+Build `upload-compat-20261122-1` changes only client upload/session compatibility and error reporting.
+Study configuration, materials, assignment, questionnaires, scoring, and the database contract are
+unchanged. New IDs use native `crypto.randomUUID` or secure `getRandomValues` UUID-v4 bytes;
+there is no weak random ID/token fallback. Existing valid UUIDs never change. Only an unaccepted
+legacy `anon-*` ID (which the UUID column could never store) may be repaired, preserving answers,
+condition and retry token. Its original ID remains in local submission metadata. Inconsistent IDs,
+missing old retry tokens, or evidence of prior acceptance stop with a diagnostic instead of guessing.
+The existing localStorage namespace is deliberately unchanged to preserve in-progress sessions.
+
+A complete JSON/CSV export record is prepared before upload setup. AbortController is optional;
+a timer still limits waiting to 25 seconds without it. Success still requires the validated storage
+receipt. Network, timeout and receipt failures do not prove the database lacks the record; retry
+keeps the frozen payload/identity/token so a stored response can return its existing receipt.
+
+Safe bilingual diagnostics display the participant ID and build, never the retry token or answers:
+
+- `UP_NETWORK`: the fetch connection failed; storage not confirmed.
+- `UP_TIMEOUT`: confirmation timed out; data may already be stored.
+- `UP_HTTP` plus HTTP status: service rejected/failed the request.
+- `UP_RECEIPT`: invalid/missing/unreadable storage receipt; data may already be stored.
+- `UP_BROWSER`: required secure browser or fetch support is unavailable.
+- `UP_IDENTITY`: inconsistent identity, missing old retry token, or unsafe migration; retain backup
+  and contact the researcher, without clearing storage or repeating the experiment.
+- `UP_SETUP`: other upload initialization failure; export retained for support.
+
+Already-open old pages do not automatically update. Keep the original failed tab open and first
+export JSON/CSV; verify an actual file was saved (some in-app browsers suppress downloads).
+After backup, open `experiment.html?upload_fix=20261122` in another tab of the SAME browser and
+origin, without clearing storage or using private mode. If the completed session is restored, retry
+there; if consent appears again, do not redo the study—keep the original tab and contact the
+researcher with the participant ID/error code. In-memory-only sessions cannot be transferred by
+changing browsers, and exports are not an automatic import tool. Check any failed participant ID
+against the existing database before an authorized manual recovery, to avoid counting it twice.
+
 ## Local verification
 
 Serve this folder at `http://127.0.0.1:8765` (e.g. `python3 -m http.server 8765`).
@@ -71,6 +107,7 @@ Use a Python environment with Playwright and Chromium:
 - `python tests/test_flow_production.py` — full desktop/mobile preview regression (real video playback).
 - `python tests/test_dashboard.py` — synthetic, offline dashboard UI/chart/access-state tests.
 - `python tests/test_dashboard_startup.py` — offline desktop/mobile nonblank-startup, legacy-browser, storage-denial, blocked/slow/broken-chart, network failure/retry, timeout and empty-state regressions.
+- `python tests/test_upload_compatibility.py` — strictly offline transport/identity/backup/receipt-retry tests; all Supabase requests are intercepted.
 - `python tests/test_attention_bilingual.py` — desktop/mobile English/Chinese attention text and scoped translation protection.
 - `python tests/test_capability.py` — actual private API + local file entry + browser automatic-update test; requires the separately stored private entry and writes a clearly tagged synthetic row. Clean up only its exact manifest UUID afterward.
 - `python tests/test_production_integration.py` — writes tagged synthetic records to the real project;

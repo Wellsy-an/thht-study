@@ -662,8 +662,10 @@
   <p>No real participant will be harmed by, or lose any payment because of, the puzzles you selected.<span class="zh" lang="zh-Hans">不会有任何真实参与者因您选择的题目而受到伤害或失去任何报酬。</span></p>
 
   <div class="notice" id="decisionNotice" role="status" hidden></div>
+  <p id="uploadSupport" class="small" translate="no" role="status" hidden></p>
+  <p id="uploadDiagnostic" class="small" role="status" hidden></p>
   <div class="error-box" id="uploadError" role="alert" hidden>
-    <p>Your responses could not be uploaded. Please check your connection and select Try again. Do not close this page yet.<span class="zh" lang="zh-Hans">您的回答未能上传。请检查网络连接后点击“重试”。请暂时不要关闭本页面。</span></p>
+    <p>Upload could not be confirmed. Save a backup and note the error code below before retrying. Keep this page open.<span class="zh" lang="zh-Hans">尚未确认上传成功。请先保存备份，记下下方错误码后再重试。请保留本页面。</span></p>
     <button type="button" class="btn btn-secondary" id="btnRetryUpload">Try again<span class="zh" lang="zh-Hans">重试</span></button>
   </div>
 
@@ -943,13 +945,43 @@ const PUZZLES = (function buildPuzzles() {
    a refresh resumes the same session: same participant_id, same
    condition, no duplicate record)
    ===================================================================== */
+// Upload compatibility helpers do not alter the study configuration or condition allocation.
+const UPLOAD_BUILD = 'upload-compat-20261122-1';
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function uploadFault(code, httpStatus) {
+  const error = new Error(code);
+  error.uploadCode = code;
+  if (httpStatus >= 100 && httpStatus <= 599) error.httpStatus = httpStatus;
+  return error;
+}
+function secureBytes(length) {
+  if (!window.crypto || typeof window.crypto.getRandomValues !== 'function') throw uploadFault('UP_BROWSER');
+  try { return window.crypto.getRandomValues(new Uint8Array(length)); }
+  catch (_) { throw uploadFault('UP_BROWSER'); }
+}
+function secureParticipantId() {
+  if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+    try { const id = window.crypto.randomUUID(); if (UUID_PATTERN.test(id)) return id; } catch (_) {}
+  }
+  const bytes = secureBytes(16);
+  bytes[6] = (bytes[6] & 15) | 64;
+  bytes[8] = (bytes[8] & 63) | 128;
+  const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+  return hex.slice(0,8)+'-'+hex.slice(8,12)+'-'+hex.slice(12,16)+'-'+hex.slice(16,20)+'-'+hex.slice(20);
+}
+function secureSubmissionToken() {
+  return Array.from(secureBytes(32), b => b.toString(16).padStart(2, '0')).join('');
+}
 const STORAGE_KEY = PREVIEW ? 'thht_v7_peach_preview_session' : 'thht_v7_peach_production_session';
 const CONDITION_KEYS = Object.keys(STUDY_CONFIG.videos);
 
 function newState() {
-  const rnd = (window.crypto && crypto.getRandomValues) ? crypto.getRandomValues(new Uint32Array(1))[0] : Math.floor(Math.random() * 4294967296);
+  let rnd;
+  try { rnd = (window.crypto && crypto.getRandomValues) ? crypto.getRandomValues(new Uint32Array(1))[0] : Math.floor(Math.random() * 4294967296); }
+  catch (_) { rnd = Math.floor(Math.random() * 4294967296); }
   const condition = CONDITION_KEYS[rnd % CONDITION_KEYS.length];
-  const pid = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'anon-' + Math.random().toString(36).slice(2, 12);
+  let pid = null;
+  try { pid = secureParticipantId(); } catch (_) { /* Preserve answers; report unsupported security features at upload. */ }
   return {
     participantId: pid,
     condition: condition,
@@ -975,17 +1007,17 @@ function newState() {
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) { const s = JSON.parse(raw); if (s && s.participantId && s.condition) { s.reloadCount = (s.reloadCount || 0) + 1; return s; } }
+    if (raw) { const s = JSON.parse(raw); if (s && (s.participantId || s.participantId === null) && s.condition) { s.reloadCount = (s.reloadCount || 0) + 1; return s; } }
   } catch (e) { /* storage unavailable: fall back to an in-memory session */ }
   return newState();
 }
 const state = loadState();
+if (!state.submission || typeof state.submission !== 'object') state.submission = {status:'not_submitted',attempts:0};
 // A previous connection may have stopped after commit but before receipt delivery.
 // Preserve the immutable snapshot and token; retrying returns the same receipt.
 if (state.submission.status === 'uploading') state.submission.status = 'failed';
-if (!state.submission.token) {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  state.submission.token = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+if (!state.submission.token && !state.submission.pendingRecord && !state.submission.receipt && !state.submission.submittedAt) {
+  try { state.submission.token = secureSubmissionToken(); } catch (_) { /* No weak token fallback. */ }
 }
 function saveState() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
@@ -1623,51 +1655,129 @@ function buildResults(includeResponses) {
 let submitting = false;
 /* Commit is confirmed only by an idempotent database receipt, never an opaque
    response or optimistic local flag. The retry token stays in this browser. */
+function ensureUploadIdentity(record, previousBackup, hadPendingRecord) {
+  const submission = state.submission;
+  const id = state.participantId;
+  if (!submission.token && (hadPendingRecord || submission.receipt || submission.submittedAt)) throw uploadFault('UP_IDENTITY');
+  if (record.participant_id !== id) throw uploadFault('UP_IDENTITY');
+  if (!UUID_PATTERN.test(id || '')) {
+    // Only the old anon-* fallback (which Postgres UUID could never accept),
+    // or a new null ID with unavailable crypto, may be repaired. Never re-ID
+    // a valid UUID or a session carrying any evidence of prior acceptance.
+    if ((id !== null && !/^anon-[a-z0-9]{1,64}$/i.test(id || '')) ||
+        submission.receipt || submission.submittedAt || submission.status === 'uploaded' ||
+        (previousBackup && previousBackup.submission_status === 'uploaded') ||
+        (previousBackup && previousBackup.participant_id !== id)) throw uploadFault('UP_IDENTITY');
+    const repaired = secureParticipantId();
+    if (!submission.originalParticipantId && id) submission.originalParticipantId = id;
+    submission.identityMigratedAt = new Date().toISOString();
+    state.participantId = repaired;
+    record.participant_id = repaired;
+    submission.pendingRecord.participant_id = repaired;
+    state.lastRecord.participant_id = repaired;
+  }
+  if (!submission.token) submission.token = secureSubmissionToken();
+  if (!/^[a-zA-Z0-9_-]{40,128}$/.test(submission.token)) throw uploadFault('UP_IDENTITY');
+  saveState();
+}
+async function requestUpload(record) {
+  if (typeof window.fetch !== 'function') throw uploadFault('UP_BROWSER');
+  let controller = null, timeout, timedOut = false;
+  // AbortController is optional; its constructor can itself throw in embedded browsers.
+  try { if (typeof window.AbortController === 'function') controller = new window.AbortController(); } catch (_) {}
+  try {
+    return await Promise.race([
+      (async () => {
+        const options = {
+          method:'POST', headers:{'Content-Type':'application/json',apikey:STUDY_CONFIG.publishableKey},
+          body:JSON.stringify({record:record,submission_token:state.submission.token}),credentials:'omit'
+        };
+        if (controller) options.signal = controller.signal;
+        let response;
+        try { response = await window.fetch(STUDY_CONFIG.submitEndpoint, options); }
+        catch (_) { throw uploadFault('UP_NETWORK'); }
+        if (!response.ok) throw uploadFault('UP_HTTP', response.status);
+        try { return await response.json(); }
+        catch (_) { throw uploadFault('UP_RECEIPT'); }
+      })(),
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => {
+          timedOut = true;
+          if (controller) { try { controller.abort(); } catch (_) {} }
+          reject(uploadFault('UP_TIMEOUT'));
+        }, 25000);
+      })
+    ]);
+  } catch (error) {
+    if (timedOut) throw uploadFault('UP_TIMEOUT');
+    throw error;
+  } finally { clearTimeout(timeout); }
+}
 async function submitResults(record) {
   if (submitting || state.submission.status === 'uploaded' || state.submission.status === 'local_only') return state.submission.status;
   submitting = true;
-  state.submission.attempts++;
-  if (!STUDY_CONFIG.submitEndpoint || PREVIEW) {
-    state.submission.status = 'local_only';
-    record.submission_status = 'local_only';
-    state.lastRecord = record; window.THHT_RESULTS = record; saveState();
-    submitting = false;
-    return 'local_only';
-  }
-  if (!state.submission.pendingRecord) state.submission.pendingRecord = JSON.parse(JSON.stringify(record));
-  record = JSON.parse(JSON.stringify(state.submission.pendingRecord));
-  state.submission.status = 'uploading'; saveState();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25000);
+  state.submission.attempts = (state.submission.attempts || 0) + 1;
+  let current = record;
+  const previousBackup = state.lastRecord;
+  const hadPendingRecord = !!state.submission.pendingRecord;
   try {
-    const res = await fetch(STUDY_CONFIG.submitEndpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': STUDY_CONFIG.publishableKey },
-      body: JSON.stringify({ record: record, submission_token: state.submission.token }),
-      signal: controller.signal,
-      credentials: 'omit'
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const receipt = await res.json();
-    if (receipt.ok !== true || receipt.participant_id !== state.participantId ||
-        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(receipt.receipt_id || '') || !Number.isFinite(Date.parse(receipt.received_at))) {
-      throw new Error('No valid storage receipt received');
+    if (!STUDY_CONFIG.submitEndpoint || PREVIEW) {
+      state.submission.status = 'local_only';
+      current.submission_status = 'local_only';
+      return 'local_only';
+    }
+    if (!state.submission.pendingRecord) state.submission.pendingRecord = JSON.parse(JSON.stringify(record));
+    current = JSON.parse(JSON.stringify(state.submission.pendingRecord));
+    // Create the complete exportable backup BEFORE any browser/network setup.
+    state.lastRecord = current; window.THHT_RESULTS = current;
+    state.submission.status = 'uploading';
+    state.submission.lastError = null; state.submission.lastErrorCode = null; state.submission.lastHttpStatus = null;
+    saveState();
+    ensureUploadIdentity(current, previousBackup, hadPendingRecord);
+    const receipt = await requestUpload(current);
+    if (!receipt || receipt.ok !== true || receipt.participant_id !== state.participantId ||
+        !UUID_PATTERN.test(receipt.receipt_id || '') || !Number.isFinite(Date.parse(receipt.received_at))) {
+      throw uploadFault('UP_RECEIPT');
     }
     state.submission.receipt = receipt;
     state.submission.status = 'uploaded';
     state.submission.submittedAt = receipt.received_at;
-    state.submission.lastError = null;
-    record.submission_status = 'uploaded';
-  } catch (err) {
+    state.submission.lastError = null; state.submission.lastErrorCode = null; state.submission.lastHttpStatus = null;
+    current.submission_status = 'uploaded';
+  } catch (error) {
+    const known = ['UP_BROWSER','UP_IDENTITY','UP_TIMEOUT','UP_HTTP','UP_RECEIPT','UP_NETWORK'];
+    const code = known.indexOf(error && error.uploadCode) >= 0 ? error.uploadCode : 'UP_SETUP';
     state.submission.status = 'failed';
-    state.submission.lastError = String(err && err.message || err);
-    record.submission_status = 'failed';
+    state.submission.lastError = code; // Never retain URLs, tokens, or response bodies in diagnostics.
+    state.submission.lastErrorCode = code;
+    state.submission.lastHttpStatus = error && error.httpStatus || null;
+    state.submission.lastFailureAt = new Date().toISOString();
+    current.submission_status = 'failed';
   } finally {
-    clearTimeout(timeout);
-    state.lastRecord = record; window.THHT_RESULTS = record; saveState();
+    state.lastRecord = current; window.THHT_RESULTS = current; saveState();
     submitting = false;
   }
   return state.submission.status;
+}
+function showUploadDiagnostics() {
+  const id = state.participantId;
+  const displayedId = typeof id === 'string' && /^(?:[0-9a-f-]{36}|anon-[a-z0-9]{1,64})$/i.test(id) ? id : 'Unavailable / 暂不可用';
+  $('uploadSupport').textContent = 'Participant ID / 参与者编号: '+displayedId+' · '+UPLOAD_BUILD;
+  $('uploadSupport').hidden = false;
+  const descriptions = {
+    UP_NETWORK:'The upload connection failed; storage could not be confirmed. / 上传连接失败，尚不能确认是否已存入。',
+    UP_TIMEOUT:'Timed out waiting for confirmation; data may already be stored. Retry uses the same record. / 等待回执超时；数据可能已存入，重试会使用同一份记录。',
+    UP_HTTP:'The service returned an HTTP error. / 数据服务返回 HTTP 错误。',
+    UP_RECEIPT:'No valid storage receipt was received; data may already be stored. / 未收到有效存储回执；数据可能已存入。',
+    UP_BROWSER:'Required secure browser features are unavailable. Save a backup before changing browsers. / 此浏览器缺少必要的安全功能，更换浏览器前请先保存备份。',
+    UP_IDENTITY:'Session identity is inconsistent. Keep the backup and contact the researcher; do not clear data or redo the study. / 作答编号状态不一致，请保留备份联系研究者，不要清缓存或重做。',
+    UP_SETUP:'Upload setup could not complete. Keep the backup and report this code. / 上传初始化未完成，请保存备份并提供此错误码。'
+  };
+  const failed = state.submission.status === 'failed';
+  const code = descriptions[state.submission.lastErrorCode] ? state.submission.lastErrorCode : 'UP_SETUP';
+  const http = state.submission.lastHttpStatus;
+  $('uploadDiagnostic').textContent = failed ? code+(code==='UP_HTTP' && http >=100 && http <=599 ? ' '+http : '')+' — '+descriptions[code] : '';
+  $('uploadDiagnostic').hidden = !failed;
 }
 
 function showSubmissionStatus(kind) {           // kind: 'keep' | 'withdraw' | 'header'
@@ -1685,9 +1795,10 @@ function showSubmissionStatus(kind) {           // kind: 'keep' | 'withdraw' | '
     notice.innerHTML = bi('Your responses were saved in this browser only. It was NOT uploaded to the researchers, because no data server is connected to this page yet.',
                           '您的回答仅保存在本浏览器中，尚未上传给研究者，因为本页面尚未连接数据服务器。');
   } else if (s === 'failed') {
-    notice.innerHTML = bi('Not uploaded yet.', '尚未上传。');
+    notice.innerHTML = bi('Upload not confirmed. Keep this page open and save a backup before retrying.', '尚未确认上传成功。请保留本页面，先保存备份再重试。');
   }
   notice.hidden = false;
+  if (kind !== 'header') showUploadDiagnostics();
   if (kind !== 'header' && state.lastRecord) {
     $('resultsJson').textContent = JSON.stringify(state.lastRecord, null, 2);
     $('resultsJson').hidden = !PREVIEW; // do not display analysis scores to participants
